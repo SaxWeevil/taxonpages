@@ -1,0 +1,26 @@
+# Router configuration
+#
+# base_url: the URL path where your site is served. It MUST match the
+# actual URL — if it doesn't, images, links, and styles will break.
+#
+# Pick the case that matches your setup:
+#
+#   1. Normal GitHub Pages repository (most common case).
+#      Your site will live at:  https://<your-user>.github.io/<repo-name>/
+#      Set:                     base_url: /<repo-name>/
+#      Example for a repo called "taxonpages":  base_url: /taxonpages/
+#
+#   2. User or organization site (the repo is named <your-user>.github.io).
+#      Your site will live at:  https://<your-user>.github.io/
+#      Set:                     base_url: /
+#
+#   3. Custom domain (you added a CNAME file under public/).
+#      Your site will live at:  https://your-domain.tld/
+#      Set:                     base_url: /
+#
+# hash_mode: when true, URLs include a "#" (e.g. /#/taxa/...). Keep this
+# enabled on GitHub Pages — otherwise reloading a taxon page directly in
+# the browser returns a 404.
+
+base_url: /taxonpages/
+hash_mode: true
