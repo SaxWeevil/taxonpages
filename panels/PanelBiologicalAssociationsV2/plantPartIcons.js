@@ -1,4 +1,9 @@
-const ICON_ROOT = '/images/biological-associations/'
+// Dateien aus public/ werden unter Vites base ausgeliefert (config/router.yml
+// base_url). Ein absolutes '/images/…' laeuft deshalb ins Leere, sobald die
+// Seite in einem Unterpfad liegt (z.B. /taxonpages/). BASE_URL endet immer auf
+// '/'; unter node --test gibt es kein import.meta.env, daher der Fallback.
+const ASSET_BASE = import.meta.env?.BASE_URL || '/'
+const ICON_ROOT = `${ASSET_BASE}images/biological-associations/`
 export const PLANT_ONTOLOGY_RELEASE = 'releases/2026-01-09'
 
 const ICONS = Object.freeze({
