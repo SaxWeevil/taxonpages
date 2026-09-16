@@ -51,6 +51,7 @@
 import { ref, computed, watch, onMounted, provide } from 'vue'
 import { useRoute } from 'vue-router'
 import { makeAPIRequest } from '@/utils/request'
+import TaxonWorks from '@/modules/otus/services/TaxonWorks'
 import { buildNodes, orderedCouplets, terminalOtus, lowestCommonAncestor, descendantOtus } from './lib/tree.js'
 import { useKeyImages } from './composables/useKeyImages.js'
 import { useKeyTaxonNames } from './composables/useKeyTaxonNames.js'
@@ -66,6 +67,7 @@ import { effectiveTaxonNameId } from './lib/validTaxonName.js'
 import { territoryLabel } from './lib/geoNormalize.js'
 import { effectiveKeys, readGeoPrefs, writeGeoPrefs } from './lib/geoPrefs.js'
 import { GEOGRAPHY_PRESETS as geoCategories } from './lib/geoData.js'
+import { stripHtml, shortCitation } from '../../panels/_shared/citationText.js'
 
 const route = useRoute()
 
@@ -363,7 +365,7 @@ async function loadCitations(leadIds, myGen) {
       const key = String(c.citation_object_id)
       ;(map[key] ||= []).push({
         id: c.id,
-        short: c.citation_source_body || c.source?.author_year || 'reference',
+        short: shortCitation(stripHtml(c.citation_source_body || '')) || c.source?.author_year || 'reference',
         full: c.source?.cached || c.citation_source_body || ''
       })
     }
@@ -422,7 +424,7 @@ async function loadScope(scopeOtuId, nodeMap, myGen) {
     const { scopeTnId, scopeOtuId: otuId } = await resolveScope(scopeOtuId, nodeMap, myGen)
     if (!scopeTnId || myGen !== loadGen) return
 
-    const { data: sum } = await makeAPIRequest.get(`/taxon_names/${scopeTnId}/inventory/summary`)
+    const { data: sum } = await TaxonWorks.summary(scopeTnId)
     if (myGen !== loadGen) return
     if (otuId != null) resolvedScopeOtuId.value = otuId
     if (sum?.full_name_tag) scopeTaxonName.value = { html: sum.full_name_tag }

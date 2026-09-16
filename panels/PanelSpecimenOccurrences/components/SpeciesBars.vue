@@ -143,39 +143,10 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { makeAPIRequest } from '@/utils'
+import { fetchAllPages } from '../../_shared/fetchAllPages.js'
+import { escHtml, splitScientificName } from '../../_shared/scientificName.js'
+import { mapPool } from '../../_shared/concurrencyPool.js'
 import SingleSpeciesOccurrences from './SingleSpeciesOccurrences.vue'
-
-function escHtml(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
-// Mirrors SingleSpeciesOccurrences.vue's splitScientificName exactly (kept
-// as a local duplicate, same reasoning as that file's own escHtml/typeStatusHtml
-// comments) — used only to build display names for species Query 1's
-// complete result adds/replaces once it supersedes Query 2 (see
-// loadOwnTaxonSpecimens), since those species may not have gone through
-// Query 2's own name lookup (taxon_names.json) at all.
-function splitScientificName(name) {
-  const words = (name || '').trim().split(/\s+/)
-  let i = 1
-  while (i < words.length) {
-    const w = words[i]
-    if (/^[a-z]/.test(w)) {
-      i++
-      continue
-    }
-    if (/^\(/.test(w) && /^[a-z]/.test(words[i + 1] || '')) {
-      i++
-      continue
-    }
-    if (/^\[/.test(w)) {
-      i++
-      continue
-    }
-    break
-  }
-  return { italic: words.slice(0, i).join(' '), plain: words.slice(i).join(' ') }
-}
 
 const props = defineProps({
   taxonId: {
@@ -299,26 +270,11 @@ const hasMore = computed(() => loadedCount.value < allSpecies.value.length)
 const activeBatchEnd = computed(() => Math.min(loadedCount.value + BATCH_SIZE, allSpecies.value.length))
 const nextBatchSize = computed(() => Math.min(BATCH_SIZE, allSpecies.value.length - loadedCount.value))
 
-// Fetches every page of a paginated index endpoint — otus.json and
-// taxon_names.json both stay fast (~1-2s) even at thousands of rows for a
-// plain descendant listing (unlike dwc_occurrences.json/collection_objects
-// with a taxon join, which do not — see project memory), so pulling the
-// full list up front is safe.
-async function fetchAllPages(url, params) {
-  const per = 500
-  const first = await makeAPIRequest.get(url, { params: { ...params, per, page: 1 } })
-  const totalPages = Number(first.headers['pagination-total-pages']) || 1
-  const pages = [first.data]
-  if (totalPages > 1) {
-    const rest = await Promise.all(
-      Array.from({ length: totalPages - 1 }, (_, i) =>
-        makeAPIRequest.get(url, { params: { ...params, per, page: i + 2 } })
-      )
-    )
-    pages.push(...rest.map((r) => r.data))
-  }
-  return pages.flat()
-}
+// otus.json and taxon_names.json both stay fast (~1-2s) even at thousands
+// of rows for a plain descendant listing (unlike dwc_occurrences.json/
+// collection_objects with a taxon join, which do not: see project memory),
+// so pulling the full list up front via fetchAllPages (panels/_shared/) is
+// safe.
 
 // otus.json?descendants=true returns OTUs at every rank in the subtree
 // (including the higher taxon's own placeholder OTU) — only currently-
@@ -412,10 +368,10 @@ async function loadNextBatch() {
   isFetchingBatch.value = true
   checkedCount.value = start
 
-  let cursor = 0
-  async function worker() {
-    while (cursor < batch.length && !query2Stopped.value) {
-      const sp = batch[cursor++]
+  await mapPool(
+    batch,
+    CONCURRENCY,
+    async (sp) => {
       try {
         const records = await fetchSpeciesRecords(sp)
         // Query 1 may have completed (and replaced results.value wholesale
@@ -433,10 +389,9 @@ async function loadNextBatch() {
       } finally {
         checkedCount.value++
       }
-    }
-  }
-
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, batch.length) }, worker))
+    },
+    () => query2Stopped.value
+  )
   loadedCount.value = end
   isFetchingBatch.value = false
   maybeBuildFallbackTotal()

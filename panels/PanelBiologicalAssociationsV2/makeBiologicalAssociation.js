@@ -14,6 +14,8 @@
  */
 
 import { isSpecimenType, resolveSpecimenRef, specimenKey } from '../_shared/specimenRef.js'
+import { escHtml, splitScientificName } from '../_shared/scientificName.js'
+import { extractOtuTagSpan } from '../_shared/otuTag.js'
 export { isSpecimenType, resolveSpecimenRef, specimenKey }
 
 /** Plain text for taxonomic name columns, filters and spreadsheet copying. */
@@ -33,8 +35,9 @@ export function hasTaxonName(otu) {
 }
 
 /**
- * Extracts the inner HTML of an otu_tag_taxon_name or otu_tag_otu_name span
- * from object_tag — already italicized by TaxonWorks, no taxonomy extend needed.
+ * Reduces an object_tag's otu_tag span (see otuTag.js) to the name this
+ * panel wants to display: just the italicized construct, "sp." appended for
+ * a bare-genus determination.
  *
  * A name can carry multiple separately-italicized runs, e.g. a subgenus:
  * "<i>Hypera</i> (<i>Hypera</i>) <i>miles</i> (Paykull, 1792)" — so the match
@@ -48,43 +51,18 @@ export function hasTaxonName(otu) {
  * counting words, not by naively checking for whitespace in a single
  * capture (which the subgenus case would misread as "has a species").
  *
- * modules/keys/KeysIndex.vue matches the same otu_tag span but keeps the
+ * modules/keys/KeysIndex.vue extracts the same otu_tag span but keeps the
  * author-year (name + authorship verbatim, no "sp." for a bare genus) — a
- * deliberately different name policy, so the two are not shared.
+ * deliberately different name policy, so this reduction step is not shared.
  */
 function extractNameHtml(objectTag) {
-  if (!objectTag) return null
-  const span = objectTag.match(/otu_tag_(?:taxon_name|otu_name)[^>]*>([\s\S]*?)<\/span>/)
+  const span = extractOtuTagSpan(objectTag)
   if (!span) return null
-  const italics = span[1].match(/<i>[\s\S]*<\/i>/)
-  if (!italics) return span[1].trim() || null
+  const italics = span.match(/<i>[\s\S]*<\/i>/)
+  if (!italics) return span
   const html = italics[0]
   const words = html.replace(/<[^>]+>/g, '').replace(/[()]/g, '').trim().split(/\s+/).filter(Boolean)
   return words.length > 1 ? html : `${html} sp.`
-}
-
-function escHtml(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
-/**
- * Splits a "Genus (Subgenus) species Author, Year" scientific name into its
- * italic part (name) and roman part (authorship). Kept deliberately in sync
- * with the identical helper in panels/_shared/DwcTable.vue — this codebase
- * copies it per file rather than sharing (see
- * panels/PanelSpecimenOccurrences/components/SpeciesBars.vue for the same note).
- */
-function splitScientificName(name) {
-  const words = (name || '').trim().split(/\s+/)
-  let i = 1
-  while (i < words.length) {
-    const w = words[i]
-    if (/^[a-z]/.test(w)) { i++; continue }
-    if (/^\(/.test(w) && /^[a-z]/.test(words[i + 1] || '')) { i++; continue }
-    if (/^\[/.test(w)) { i++; continue }
-    break
-  }
-  return { italic: words.slice(0, i).join(' '), plain: words.slice(i).join(' ') }
 }
 
 function nameHtmlFromScientificName(scientificName) {

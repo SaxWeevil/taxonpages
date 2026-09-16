@@ -152,13 +152,12 @@
           type="button"
           class="ml-1 text-secondary hover:underline cursor-pointer"
           @click="activeCitation = cit"
-          v-html="cit.citation_source_body"
-        /></div>
+        >{{ shortCitation(stripHtml(cit.citation_source_body)) }}</button></div>
 
       <!-- Source -->
       <div
         v-if="image.source?.label"
-        class="opacity-60 my-1"
+        class="opacity-60 my-1 [&_a]:hover:underline"
         v-html="image.source.label"
       />
 
@@ -193,19 +192,10 @@
     <!-- Reference detail. A direct child, NOT teleported: VModal's own overlay is
          only z-[2000], so from <body> it would sit behind this z-[10000] viewer.
          Inside the viewer's stacking context it paints on top (same as DwcTable). -->
-    <VModal
-      v-if="activeCitation"
-      aria-label="Reference"
+    <ReferenceModal
+      :citation="activeCitation"
       @close="closeCitation"
-    >
-      <template #header>
-        <div class="text-sm font-medium">Reference</div>
-      </template>
-      <div
-        class="px-4 pb-4 text-sm leading-relaxed [&_a]:text-secondary [&_a]:hover:underline"
-        v-html="sanitizeAndLinkifyHtml(activeCitation.source?.cached || activeCitation.citation_source_body || '')"
-      />
-    </VModal>
+    />
   </div>
 </template>
 
@@ -214,8 +204,10 @@ import { ref, reactive, computed, watch, onMounted, onUnmounted, defineAsyncComp
 import ControlImageNext from '@/components/ImageViewer/ControlImageNext.vue'
 import ControlImagePrevious from '@/components/ImageViewer/ControlImagePrevious.vue'
 import { makeAPIRequest } from '@/utils/request'
-import { sanitizeAndLinkifyHtml } from '@/utils'
 import { fetchImageCitations, imageIdFromOriginalPng } from './imageCitations.js'
+import { stripHtml, shortCitation } from './citationText.js'
+import { escHtml, splitScientificName as splitName } from './scientificName.js'
+import ReferenceModal from './ReferenceModal.vue'
 
 // Async both ways: DwcTable imports this file back (its media strip opens this
 // lightbox). Splitting DwcTable into its own chunk also keeps it out of the
@@ -394,28 +386,11 @@ watch(
 // Minimum 3 chars per lowercase word to skip prepositions (of, at, in).
 function italicizeNames(text) {
   if (!text) return ''
-  const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const escaped = escHtml(text)
   return escaped.replace(
     /\b([A-Z][a-z]+(?:\s+\([A-Z][a-z]+\))?)(\s+(?:\[[^\]]*\]\s+)?[a-z][a-z]{2,}(?:\s+[a-z][a-z]{2,})*)/g,
     '<em>$1$2</em>'
   )
-}
-
-// Split "Genus (Subgenus) species (Author, year)" into italic name and plain authorship.
-// Rules:
-//   lowercase word                        → species/subspecies epithet → italic
-//   (Word) where next word is lowercase   → subgenus → italic
-//   anything else                         → authorship → plain
-function splitName(name) {
-  const words = (name || '').trim().split(/\s+/)
-  let i = 1
-  while (i < words.length) {
-    const w = words[i]
-    if (/^[a-z]/.test(w)) { i++; continue }
-    if (/^\(/.test(w) && /^[a-z]/.test(words[i + 1] || '')) { i++; continue }
-    break
-  }
-  return { italic: words.slice(0, i).join(' '), plain: words.slice(i).join(' ') }
 }
 
 const image = computed(() => props.images[props.index] || {})
