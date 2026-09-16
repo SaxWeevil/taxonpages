@@ -33,9 +33,28 @@ const baseData = {
 
 const basic = { subject_otu_id: 1411454, object_otu_id: 1383723 }
 
+test('Expert link metadata requires an explicit TaxonName; family placeholders normalize to blank', () => {
+  const otus = new Map([
+    ['1411454', { id: 1411454, name: 'unidentified beetle', taxon_name_id: null }],
+    ['1383723', { id: 1383723, taxon_name_id: 1583501 }]
+  ])
+  const ba = makeBiologicalAssociation(baseData, [], [], [], {
+    ...basic,
+    subject: { family: 'Not specified' },
+    object: { family: 'Caryophyllaceae' }
+  }, new Map(), otus)
+  assert.equal(ba.subjectHasTaxonName, false)
+  assert.equal(ba.subjectFamily, null)
+  assert.equal(ba.objectHasTaxonName, true)
+  assert.equal(ba.objectFamily, 'Caryophyllaceae')
+})
+
 test('CO/FO label uses the DWC scientificName (italic name + roman authorship), not the catalog string', () => {
   const locality = new Map([
-    ['FieldOccurrence:5000', { scientificName: 'Hypera (Kippenbergia) arator (Linnaeus, 1758)' }]
+    ['FieldOccurrence:5000', {
+      scientificName: 'Hypera (Kippenbergia) arator (Linnaeus, 1758)',
+      family: 'Curculionidae'
+    }]
   ])
 
   const ba = makeBiologicalAssociation(baseData, [], [], [], basic, locality)
@@ -49,6 +68,7 @@ test('CO/FO label uses the DWC scientificName (italic name + roman authorship), 
   assert.equal(ba.subjectOtuId, 1411454)
   assert.equal(ba.subjectSpecimenType, 'FieldOccurrence')
   assert.equal(ba.subjectSpecimenId, 5000)
+  assert.equal(ba.subjectFamily, 'Curculionidae')
   // no leak of the raw "FieldOccurrence 5000; <uuid>; …" string
   assert.ok(!ba.subjectSpeciesHtml.includes('FieldOccurrence 5000'))
 })
