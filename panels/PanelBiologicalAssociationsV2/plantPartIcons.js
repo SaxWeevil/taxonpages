@@ -9,7 +9,10 @@ export const PLANT_ONTOLOGY_RELEASE = 'releases/2026-01-09'
 const ICONS = Object.freeze({
   wholePlant: {
     key: 'whole-plant',
-    label: 'Whole plant',
+    // A record without an Object AnatomicalPart names the plant, not an organ.
+    // The PO term behind the icon stays "whole plant"; only the wording here
+    // says what the data actually asserts.
+    label: 'On plant',
     src: `${ICON_ROOT}plant-part-whole-plant.png`
   },
   leaf: {
@@ -48,7 +51,7 @@ const ICONS = Object.freeze({
 // groups, not additional TaxonWorks fields and not inferred PO relationships.
 // Keeping the PO identity here makes each simplification auditable.
 const PART_MAPPING = Object.freeze({
-  'whole plant': { poId: 'PO:0000003', icon: 'wholePlant' },
+  'on plant': { poId: 'PO:0000003', icon: 'wholePlant' },
 
   leaf: { poId: 'PO:0025034', icon: 'leaf' },
   petiole: { poId: 'PO:0020038', icon: 'leaf' },

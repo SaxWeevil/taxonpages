@@ -1,4 +1,5 @@
 import { makeStandardParticipant } from './makeBiologicalAssociation.js'
+import { emptyStandardCounts, standardRowMark } from './standardEvidence.js'
 
 const collator = new Intl.Collator('en', { sensitivity: 'base', numeric: true })
 export const alphabetical = (a, b) => collator.compare(a || '', b || '')
@@ -16,7 +17,8 @@ function plantPart(participant) {
   const part = displayValue(participant.part)
   if (part) return part
   if (participant.hasAnatomicalPart) return ''
-  return 'whole plant'
+  // No AnatomicalPart means the record names the plant, not an organ of it.
+  return 'on plant'
 }
 
 /** Keep only the genus and species epithet used by the compact Standard view. */
@@ -96,7 +98,7 @@ export function groupStandardAssociations(
         italic: other.italic, otuId: other.otuId,
         families: sortedValues(familiesByTaxon.get(other.key)),
         pending: other.pending,
-        parts: new Set(), ids: new Set()
+        parts: new Set(), ids: new Set(), counts: emptyStandardCounts()
       })
     }
     const group = groups.get(key)
@@ -107,6 +109,9 @@ export function groupStandardAssociations(
     const plant = currentSide === 'subject' ? other : current
     const part = plantPart(plant)
     if (part) group.parts.add(part)
+    // Count before adding: ids is a Set, and one record must mark its group
+    // exactly once even if a direction lists it twice.
+    if (!group.ids.has(row.id)) group.counts[standardRowMark(row)]++
     group.ids.add(row.id)
   }
 

@@ -43,7 +43,7 @@ test('both synonym switches are independent, including FO names, authors and lin
   assert.equal(result[0].subject.otuId, 12)
   assert.equal(result[0].subject.part, 'adult')
   assert.equal(result[0].object.part, 'leaf')
-  assert.equal(result[1].object.part, 'whole plant')
+  assert.equal(result[1].object.part, 'on plant')
   settings.original.subject = true
   result = makeAdvancedRows(rows, taxa, settings)
   assert.equal(result[0].subject.species, 'Hypera (Eririnomorphus) adspersa now Hypera (Eririnomorphus) conmaculata')

@@ -22,8 +22,8 @@ test('maps the inventoried plant terms to curated PO icon groups', () => {
   assert.equal(PLANT_ONTOLOGY_RELEASE, 'releases/2026-01-09')
 })
 
-test('maps whole plant and both bud terms to their own icons', () => {
-  const display = plantPartDisplay(['whole plant', 'bud', 'flower bud'])
+test('maps the whole-plant icon and both bud terms to their own icons', () => {
+  const display = plantPartDisplay(['on plant', 'bud', 'flower bud'])
 
   assert.deepEqual(display.icons.map(icon => icon.key), ['whole-plant', 'bud'])
   assert.deepEqual(display.icons[0].poIds, ['PO:0000003'])
@@ -37,11 +37,11 @@ test('maps whole plant and both bud terms to their own icons', () => {
 test('collects unique terms from only the currently supplied rows', () => {
   const rows = [
     { parts: ['leaf', 'bud', 'leaf'] },
-    { parts: [' whole plant ', 'bud'] },
+    { parts: [' on plant ', 'bud'] },
     { parts: [] }
   ]
 
-  assert.deepEqual(uniquePlantParts(rows), ['bud', 'leaf', 'whole plant'])
+  assert.deepEqual(uniquePlantParts(rows), ['bud', 'leaf', 'on plant'])
   assert.deepEqual(uniquePlantParts(rows.slice(0, 1)), ['bud', 'leaf'])
 })
 
@@ -54,11 +54,11 @@ test('combines fruit and seed into the confirmed shared project icon', () => {
 })
 
 test('keeps original terms and unmapped parts available as text', () => {
-  const display = plantPartDisplay(['leaf', 'bud', 'whole plant', 'unknown tissue'])
+  const display = plantPartDisplay(['leaf', 'bud', 'on plant', 'unknown tissue'])
 
   assert.deepEqual(display.icons.map(icon => icon.key), ['whole-plant', 'leaf', 'bud'])
   assert.deepEqual(display.fallback, ['unknown tissue'])
-  assert.deepEqual(display.originals, ['bud', 'leaf', 'unknown tissue', 'whole plant'])
+  assert.deepEqual(display.originals, ['bud', 'leaf', 'on plant', 'unknown tissue'])
 })
 
 test('explains the intentional rhizome simplification', () => {

@@ -27,12 +27,35 @@ associated plants, and a plant page lists associated beetles. The current taxon
 is omitted from the table. If the page's taxon appears in both directions, the
 lists remain separate. Descendant taxa are included on genus/family/higher pages.
 
+- Standard is the **field view**: it answers where it is worth looking for this
+  beetle, so it shows only records whose **Subject** carries an immature stage
+  (`egg`, `larvae`, `pupa`, `nidus`), or whose Subject is an adult or carries no
+  anatomical part and whose relationship is `feeding observed in the wild on`,
+  `reared from` or `collected from`. Rearing counts as confirmed evidence
+  because it shows the host carried the development, not just the adult; being
+  `collected from` a plant shows neither, so it is marked as weaker evidence.
+  Everything else — above all the legacy feeding records that name neither a
+  stage nor an organ — stays behind the **Enable all relationships** switch at
+  the upper right, which carries the number of hidden records and holds for the
+  browser session. With the switch on, those records appear marked red.
+- Each row aggregates the records of one associated taxon and can therefore mix
+  evidence. A row carries **one glowing dot per category** behind the Records
+  count, never a single worst-case verdict: green for a stage, a rearing or a
+  wild feeding observation, amber for `collected from`, red for a record outside
+  the criteria. Every category keeps its slot even when that row has none of it, and
+  the count sits right-aligned in a box wide enough for three digits, so the
+  three colours read as their own columns down the table whether a row counts 1,
+  10 or 100 records. The dot's hover and accessible name name the share, for
+  example “3 of 13 records: adult collected from”; an empty slot is
+  hidden from screen readers. The dots carry no text, so copying the table is
+  unaffected. An empty Standard table distinguishes “No records match the
+  standard criteria.” from “No records found.”
 - The four columns are **Anatomical parts**, **Family**, **Associated taxon** and
   a clickable **Records** count. The first column always describes the plant:
   it comes from the associated plant on a beetle page and from the current
   plant on a plant page. Standard view maps the recorded terms to the curated
   Plant Ontology display groups leaf, flower, stem, root and the coupled
-  fruit/seed group. Bud and whole plant have their own icons. The information
+  fruit/seed group. Bud and the whole-plant silhouette have their own icons. The information
   control in the column heading lists every unique underlying term in the
   currently displayed page and any required simplification note. Terms without
   a valid existing icon remain text instead of receiving a biologically
@@ -52,8 +75,11 @@ lists remain separate. Descendant taxa are included on genus/family/higher pages
   through TaxonWorks' `coordinatify` OTU expansion. Standard view groups them under
   `cached_valid_taxon_name_id`, displays the accepted name and links its accepted
   OTU page. Raw data view retains each association's originally recorded name.
-- An Object without an AnatomicalPart represents the complete plant. Standard
-  view therefore displays it as **whole plant**.
+- An Object without an AnatomicalPart names the plant rather than an organ of
+  it. Standard and Advanced view therefore display it as **on plant**. The icon
+  behind it stays the whole-plant silhouette and keeps its `PO:0000003`
+  reference — the wording says what the record asserts, the PO id what the term
+  behind the picture is.
 - The rows of all three views read at `text-sm`, set on the cells in the panel's
   own style block. TaxonPages' `VTableBody` puts `text-xs` on the `tbody`, a step
   below the panels next to this one — Descendants and synonyms, Nomenclature and
@@ -67,8 +93,9 @@ lists remain separate. Descendant taxa are included on genus/family/higher pages
 - Explicit `Not available` and `Not specified` anatomy and missing
   classification render as blank cells. Biological properties are not
   interpreted as anatomy.
-- The Standard table omits the Relationship column. A checkbox dropdown in both
-  Standard and Raw data views lists every available relationship. Raw data applies
+- The Standard table omits the Relationship column, and has no relationship
+  dropdown: the evidence rule above and its switch decide what it shows. A
+  checkbox dropdown in **Raw data** lists every available relationship. Raw data applies
   the selected relationship IDs on the server before pagination. Relationships containing `legacy` or
   `undefined relationship` are initially disabled; informative relationships
   are enabled. Manual choices apply across taxon pages and newly opened tabs
@@ -77,6 +104,9 @@ lists remain separate. Descendant taxa are included on genus/family/higher pages
   restore the previous session may also restore session cookies after restart.
   Blocked storage falls back to choices within the current panel.
   “Reset to default” at the top of the dropdown restores this initial selection.
+  A Records drilldown out of Standard names its records by id and is therefore
+  **not** narrowed again by that dropdown — Raw data would otherwise show fewer
+  records than the count that was clicked.
   A separate, clickable ⓘ button explains the strength of the displayed
   evidence and links to the Biological relationships documentation. The filter
   itself has no hover hint.
@@ -210,7 +240,7 @@ Active name filters are translated when switching synonyms or authorship.
 - A vertical rule separates the four column groups (Subject, Relationship,
   Object, Metadata) and nothing else — there is none between Family and Genus.
 - Both taxonomy sides have separate anatomical columns. Missing Subject anatomy
-  displays **adult**; missing Object anatomy displays **whole plant**.
+  displays **adult**; missing Object anatomy displays **on plant**.
 - Tags and attributes belong to each **BiologicalAssociation**, not its
   BiologicalRelationship type. Attribute names and values appear in two aligned,
   numbered lists. A combined attribute-name/value filter matches the same

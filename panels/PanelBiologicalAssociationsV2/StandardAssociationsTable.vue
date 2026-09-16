@@ -43,13 +43,32 @@
             </span>
           </VTableBodyCell>
           <VTableBodyCell class="standard-col-records">
-            <VButton
-              size="xs"
-              variant="secondary"
-              ghost
-              :aria-label="'Show ' + row.count + ' records for ' + row.name + ' in Raw data'"
-              @click="$emit('show-records', row)"
-            >{{ row.count }}</VButton>
+            <span class="standard-records-cell">
+              <VButton
+                class="standard-records-count"
+                size="xs"
+                variant="secondary"
+                ghost
+                :aria-label="'Show ' + row.count + ' records for ' + row.name + ' in Raw data'"
+                @click="$emit('show-records', row)"
+              >{{ row.count }}</VButton>
+              <!-- Every category keeps its slot, so green, amber and red each
+                   read as their own column down the table. An absent one is
+                   hidden from sight and from screen readers. The dots carry no
+                   text, so table copying stays untouched. -->
+              <span class="standard-marks">
+                <span
+                  v-for="mark in rowMarks(row)"
+                  :key="mark.key"
+                  class="evidence-dot"
+                  :class="[mark.class, { 'evidence-dot-empty': !mark.count }]"
+                  :role="mark.count ? 'img' : undefined"
+                  :aria-hidden="mark.count ? undefined : 'true'"
+                  :aria-label="mark.count ? mark.title : undefined"
+                  :title="mark.count ? mark.title : undefined"
+                />
+              </span>
+            </span>
           </VTableBodyCell>
             </VTableBodyRow>
           </template>
@@ -75,6 +94,24 @@ const tableRoot = ref(null)
 const copySelection = event => copyTableSelection(event, tableRoot.value)
 onMounted(() => document.addEventListener('copy', copySelection))
 onBeforeUnmount(() => document.removeEventListener('copy', copySelection))
+// Stage, rearing and wild feeding share the green dot: the mark says how much a
+// record is worth in the field, not which rule let it in.
+const MARK_STYLES = [
+  { key: 'confirmed', class: 'text-success', reason: 'immature stage, or adult reared from or feeding observed in the wild' },
+  { key: 'weak', class: 'text-warning', reason: 'adult collected from' },
+  { key: 'excluded', class: 'text-danger', reason: 'vague relationships of adults: legacy, feeding observed in experimental setup and undefined relationship' }
+]
+
+/** All three slots, always, in a fixed order -- a row that only has red must
+ *  not put its dot where its neighbour's green one sits. */
+function rowMarks(row) {
+  const counts = row.counts || {}
+  return MARK_STYLES.map(mark => {
+    const count = counts[mark.key] || 0
+    return { ...mark, count, title: `${count} of ${row.count} records: ${mark.reason}` }
+  })
+}
+
 const allRows = computed(() => props.sections.flatMap(section => section.rows))
 const visibleRows = computed(() => allRows.value)
 const visibleParts = computed(() => uniquePlantParts(visibleRows.value))
@@ -145,6 +182,46 @@ const visibleSections = computed(() => props.sections.map(section => {
 .standard-association-table :deep(.standard-col-records) {
   width: 1%;
   white-space: nowrap;
+}
+
+.standard-records-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.standard-marks {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+/* Reserve three digits so the dot columns do not move between rows counting 1,
+   10 or 100 records. VButton size="xs" adds px-1.5 and a 1px border per side;
+   tabular-nums makes every digit the same width, which also lines up the
+   counts themselves on their last digit. The exact value only decides whether
+   a three-digit count fits -- the alignment itself comes from every row
+   reserving the same width. */
+.standard-association-table :deep(.standard-records-count) {
+  min-width: calc(3ch + 0.75rem + 2px);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Colour comes from a theme token class (text-success/-warning/-danger), so the
+   dot and its glow re-tint with the theme in both light and dark mode. */
+.evidence-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: currentColor;
+  box-shadow: 0 0 0.3rem currentColor;
+}
+
+/* An absent category holds its place rather than closing the gap. */
+.evidence-dot-empty {
+  visibility: hidden;
 }
 
 </style>
