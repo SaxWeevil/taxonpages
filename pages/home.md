@@ -5,15 +5,15 @@ project: "TaxonPages: Curculionidae of the World"
 ---
 <div style="display: flex; justify-content: center; gap: 1rem;">
   <a href="#/otus/723601/overview">
-    <img src="{{ app:base_url }}images/otiorhynchus_carinatopunctatus_500.png" 
+    <img src="/images/otiorhynchus_carinatopunctatus_500.png" 
          alt="Otiorhynchus (Nihus) carinatopunctatus (Retzius, 1783). Photo by Jakob Jilg">
   </a>
   <a href="#/otus/729972/overview">
-    <img src="{{ app:base_url }}images/chlorophanus_viridis_500.png" 
+    <img src="/images/chlorophanus_viridis_500.png" 
          alt="Chlorophanus viridis (Linnaeus, 1758). Photo by Jakob Jilg">
   </a>
   <a href="#/otus/718330/overview">
-    <img src="{{ app:base_url }}images/exophtalmus_triangulifer_500.png" 
+    <img src="/images/exophtalmus_triangulifer_500.png" 
          alt="Exophthalmus triangulifer Champion, 1911. Photo by Jakob Jilg">
   </a>
 </div>
