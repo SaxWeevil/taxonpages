@@ -34,8 +34,30 @@
           ref="advancedToolbar"
           class="flex w-full flex-wrap items-center justify-start gap-3 sm:ml-auto sm:w-auto sm:justify-end"
         >
+          <!-- Standard is a curated evidence view; this switch, not a
+               relationship dropdown, is what widens it. -->
+          <button
+            v-if="viewMode === 'standard' && standardReady"
+            type="button"
+            role="switch"
+            :aria-checked="showAllRelationships"
+            data-testid="biological-associations-all-relationships"
+            class="flex cursor-pointer items-center gap-2 text-sm"
+            @click="setShowAllRelationships(!showAllRelationships)"
+          >
+            <span
+              class="bas-switch-track relative inline-block h-5 w-9 shrink-0 rounded-full border transition-colors"
+              :class="showAllRelationships ? 'bg-secondary' : 'bg-base-muted'"
+            >
+              <span
+                class="bas-switch-knob absolute top-[0.15rem] h-3.5 w-3.5 rounded-full border bg-base-foreground transition-all"
+                :class="showAllRelationships ? 'left-[1.1rem]' : 'left-[0.1rem]'"
+              />
+            </span>
+            <span>{{ allRelationshipsLabel }}</span>
+          </button>
           <RelationshipFilter
-            v-if="viewMode !== 'advanced' && relationshipOptions.length"
+            v-if="viewMode === 'expert' && relationshipOptions.length"
             :model-value="selectedRelationships"
             :options="relationshipOptions"
             @update:model-value="setSelectedRelationships"
@@ -115,7 +137,7 @@
         <div
           v-if="standardLoadState === 'ready' && !loadError && !standardAsSubject.length && !standardAsObject.length"
           class="text-xl text-center my-8 w-full"
-        >No records found.</div>
+        >{{ standardEmptyMessage }}</div>
       </template>
 
       <!-- Summary: higher-rank pages (genus and above), before drilling into a group.
@@ -430,7 +452,7 @@ import {
   SPECIES_AND_INFRASPECIES_GROUP
 } from '@/modules/otus/constants'
 import StandardAssociationsTable from './StandardAssociationsTable.vue'
-import { advancedScope } from './browserSessionStorage.js'
+import { advancedScope, readBrowserSession, writeBrowserSession } from './browserSessionStorage.js'
 import { copyTableSelection } from './tableClipboard.js'
 import RelationshipFilter from './RelationshipFilter.vue'
 import {
@@ -457,6 +479,7 @@ import {
   STANDARD_SUMMARY_PAGE_SIZE
 } from './loadStandardAssociations.js'
 import { loadAdvancedClassification } from './loadAdvancedAssociations.js'
+import { filterStandardRows, isStandardVisible } from './standardEvidence.js'
 import {
   indexRelationshipIds,
   readSessionRelationshipPreferences,
@@ -590,6 +613,10 @@ const advancedCount = ref(0)
 const standardTaxa = ref({ otuById: new Map(), dwcBySpecimen: new Map() })
 const loadError = ref('')
 const selectedRelationships = ref([])
+// The switch belongs to the browser session, not to the taxon page: someone
+// who widened Standard keeps it widened while browsing from taxon to taxon.
+const STANDARD_ALL_RELATIONSHIPS_KEY = 'taxonpages:standard-all-relationships'
+const showAllRelationships = ref(readBrowserSession(STANDARD_ALL_RELATIONSHIPS_KEY)?.all === true)
 const relationshipPreferences = ref({})
 const relationshipIdsByName = ref(new Map())
 const relationshipIdsLoaded = ref(false)
@@ -608,11 +635,28 @@ const filteredStandardObjectRows = computed(() =>
   filterRowsByRelationships(summaryAsObjectRows.value, selectedRelationships.value)
 )
 
+// Standard no longer follows the relationship dropdown -- that belongs to Raw
+// data. It applies the evidence rule instead, and the switch widens it to the
+// complete index while the dots keep saying what each row is worth.
+const standardSubjectRows = computed(() =>
+  filterStandardRows(summaryAsSubjectRows.value, showAllRelationships.value))
+const standardObjectRows = computed(() =>
+  filterStandardRows(summaryAsObjectRows.value, showAllRelationships.value))
+const hiddenStandardCount = computed(() =>
+  allAssociationRows.value.filter(row => !isStandardVisible(row)).length)
+const allRelationshipsLabel = computed(() =>
+  showAllRelationships.value || !hiddenStandardCount.value
+    ? 'Enable all relationships'
+    : `Enable all relationships (${hiddenStandardCount.value} hidden)`)
+const standardEmptyMessage = computed(() => hiddenStandardCount.value
+  ? 'No records match the standard criteria.'
+  : 'No records found.')
+
 const standardAsSubject = computed(() => standardReady.value
-  ? groupStandardAssociations(filteredStandardSubjectRows.value, 'subject', standardTaxa.value.otuById, standardTaxa.value.dwcBySpecimen, summaryAsSubjectRows.value)
+  ? groupStandardAssociations(standardSubjectRows.value, 'subject', standardTaxa.value.otuById, standardTaxa.value.dwcBySpecimen, summaryAsSubjectRows.value)
   : [])
 const standardAsObject = computed(() => standardReady.value
-  ? groupStandardAssociations(filteredStandardObjectRows.value, 'object', standardTaxa.value.otuById, standardTaxa.value.dwcBySpecimen, summaryAsObjectRows.value)
+  ? groupStandardAssociations(standardObjectRows.value, 'object', standardTaxa.value.otuById, standardTaxa.value.dwcBySpecimen, summaryAsObjectRows.value)
   : [])
 const groupBy = ref('family') // 'family' | 'genus'
 const selectedGroup = ref(null) // { key, count, ids } while drilled into one group
@@ -638,11 +682,10 @@ const summaryAsObjectGroups  = computed(() => groupRows(filteredStandardObjectRo
 const headerCount = computed(() => {
   if (viewMode.value === 'advanced') return advancedCount.value
   if (viewMode.value === 'expert' && !showSummary.value) return pagination.value.total
-  const ids = new Set([
-    ...filteredStandardSubjectRows.value,
-    ...filteredStandardObjectRows.value
-  ].map((r) => r.id))
-  return ids.size
+  const rows = viewMode.value === 'standard'
+    ? [...standardSubjectRows.value, ...standardObjectRows.value]
+    : [...filteredStandardSubjectRows.value, ...filteredStandardObjectRows.value]
+  return new Set(rows.map((r) => r.id)).size
 })
 
 const biologicalAssociations = ref([])
@@ -769,6 +812,11 @@ onBeforeUnmount(() => {
   document.removeEventListener('copy', copyRawSelection)
   ++loadRequestId
 })
+
+function setShowAllRelationships(showAll) {
+  showAllRelationships.value = showAll
+  writeBrowserSession(STANDARD_ALL_RELATIONSHIPS_KEY, { all: showAll })
+}
 
 function setSelectedRelationships(selected) {
   selectedRelationships.value = selected
@@ -1516,7 +1564,11 @@ async function loadBiologicalAssociations(page = 1) {
     // The full endpoint filters by relationship id, while /basic exposes the
     // human-readable names used by the dropdown. Resolve that mapping once per
     // panel instance and let TaxonWorks filter before applying pagination.
-    const filterRelationships = relationshipOptions.value.length > 0
+    // A drilldown out of Standard already names its records by id, chosen by
+    // the evidence rule rather than the dropdown. Applying the relationship
+    // filter on top would show fewer records than the count that was clicked.
+    const filterRelationships = !selectedGroup.value?.fromStandard
+      && relationshipOptions.value.length > 0
       && selectedRelationships.value.length < relationshipOptions.value.length
     let relationshipIds = null
     if (filterRelationships) {
@@ -1539,8 +1591,10 @@ async function loadBiologicalAssociations(page = 1) {
       // Remove unnamed OTUs before slicing. Query only this page's IDs so the
       // full endpoint cannot bring excluded rows back or leave holes in pages.
       const groupIds = selectedGroup.value && new Set(selectedGroup.value.ids)
-      const eligible = filterRowsByRelationships(allAssociationRows.value, selectedRelationships.value)
-        .filter(row => !groupIds || groupIds.has(row.id))
+      const candidates = selectedGroup.value?.fromStandard
+        ? allAssociationRows.value
+        : filterRowsByRelationships(allAssociationRows.value, selectedRelationships.value)
+      const eligible = candidates.filter(row => !groupIds || groupIds.has(row.id))
       visibleTotal = eligible.length
       if (!visibleTotal) {
         pagination.value = { page: 1, per: pagination.value.per, total: 0 }
@@ -1696,5 +1750,14 @@ async function loadBiologicalAssociations(page = 1) {
 }
 :deep(.tp-pagination button) {
   border-color: color-mix(in oklab, var(--color-base-content) 20%, transparent);
+}
+
+/* Off, the switch is base-muted on a base-foreground card and its knob is that
+   same card colour -- 48 on 38 in the dark theme, which is no switch at all.
+   Both therefore carry the outline the pagination buttons above use, so track
+   and knob stay readable off and on, in either theme. */
+.bas-switch-track,
+.bas-switch-knob {
+  border-color: color-mix(in oklab, var(--color-base-content) 30%, transparent);
 }
 </style>

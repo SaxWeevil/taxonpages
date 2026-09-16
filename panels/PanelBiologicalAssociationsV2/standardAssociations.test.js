@@ -52,8 +52,25 @@ test('standard view combines repeated species and sorts unique plant parts', () 
   assert.equal(group.name, 'Dianthus carthusianorum')
   assert.equal(group.otuId, 1383723)
   assert.deepEqual(group.families, ['Caryophyllaceae'])
-  assert.deepEqual(group.parts, ['leaf', 'plant ovary', 'whole plant'])
+  assert.deepEqual(group.parts, ['leaf', 'on plant', 'plant ovary'])
   assert.equal(group.count, 4)
+})
+
+test('a mixed group counts its records by evidence mark', () => {
+  const adult = { id: 732584, type: 'Otu', family: 'Curculionidae', label: 'Hypera (Kippenbergia) arator (Linnaeus, 1758)' }
+  const rows = [
+    row(1),                                                         // larvae -> confirmed
+    { ...row(2, plant, adult), relationship: 'collected from' },    // weak
+    { ...row(3, plant, adult), relationship: '[legacy] feeds on' }  // excluded
+  ]
+  const [group] = groupStandardAssociations(rows, 'subject', otuById)
+  assert.deepEqual(group.counts, { confirmed: 1, weak: 1, excluded: 1 })
+  assert.equal(group.count, 3)
+})
+
+test('a group of one category carries only that count', () => {
+  const [group] = groupStandardAssociations([row(1), row(2)], 'subject', otuById)
+  assert.deepEqual(group.counts, { confirmed: 2, weak: 0, excluded: 0 })
 })
 
 test('beetle pages combine plant parts across life stages', () => {
@@ -75,12 +92,12 @@ test('plant pages show their plant parts before the compact associated beetle na
   assert.deepEqual(group.families, ['Curculionidae'])
 })
 
-test('a plant without an anatomical part is displayed as whole plant in either direction', () => {
+test('a plant without an anatomical part is displayed as on plant in either direction', () => {
   const subjectPage = groupStandardAssociations([row(1)], 'subject', otuById)
   const objectPage = groupStandardAssociations([row(1)], 'object', otuById)
 
-  assert.deepEqual(subjectPage[0].parts, ['whole plant'])
-  assert.deepEqual(objectPage[0].parts, ['whole plant'])
+  assert.deepEqual(subjectPage[0].parts, ['on plant'])
+  assert.deepEqual(objectPage[0].parts, ['on plant'])
 })
 
 test('standard names omit subgenus, authorship and year', () => {
@@ -113,7 +130,7 @@ test('different OTUs of the same TaxonName combine even across CO, FO and anatom
   ]
   const [group] = groupStandardAssociations(records, 'object', otuById)
   assert.equal(group.count, 3)
-  assert.deepEqual(group.parts, ['whole plant'])
+  assert.deepEqual(group.parts, ['on plant'])
 })
 
 test('family is shared between anatomical records of the same taxon', () => {
