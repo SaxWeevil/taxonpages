@@ -16,6 +16,22 @@
 import { isSpecimenType, resolveSpecimenRef, specimenKey } from '../_shared/specimenRef.js'
 export { isSpecimenType, resolveSpecimenRef, specimenKey }
 
+/** Plain text for taxonomic name columns, filters and spreadsheet copying. */
+export function plainText(value) {
+  return String(value ?? '').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'").replace(/&nbsp;/g, ' ').trim()
+}
+
+export function displayFamily(value) {
+  const family = value?.trim?.() || ''
+  return /^(?:not available|not specified)$/i.test(family) ? '' : family
+}
+
+export function hasTaxonName(otu) {
+  return !!(otu?.accepted_taxon_name?.id || otu?.taxon_name_id || otu?.taxon_name?.id)
+}
+
 /**
  * Extracts the inner HTML of an otu_tag_taxon_name or otu_tag_otu_name span
  * from object_tag — already italicized by TaxonWorks, no taxonomy extend needed.
@@ -135,7 +151,8 @@ export function makeBiologicalAssociation(
   distributions  = [],
   citationList   = [],
   basic          = null,
-  localityByCoId = new Map()
+  localityByCoId = new Map(),
+  otuById        = new Map()
 ) {
   const subj = data.subject || {}
   const obj  = data.object  || {}
@@ -155,11 +172,11 @@ export function makeBiologicalAssociation(
   return {
     id: data.id,
 
-    subjectFamily:       basic?.subject?.family || null,
+    subjectFamily:       displayFamily(basic?.subject?.family) || displayFamily(subjDwc?.family) || null,
     subjectLabelPrefix:  subjLabel.prefix,
     subjectSpeciesHtml:  subjLabel.html,
     subjectOtuId:        basic?.subject_otu_id || null,
-    subjectDetail:      subj.object_tag || null,
+    subjectHasTaxonName: hasTaxonName(otuById.get(String(basic?.subject_otu_id))),
     subjectSpecimenType: subjSpecimen?.type || null,
     subjectSpecimenId:   subjSpecimen?.id || null,
     subjectLocality:    subjDwc,
@@ -167,11 +184,11 @@ export function makeBiologicalAssociation(
 
     biologicalRelationship:    rel.name || '',
 
-    objectFamily:       basic?.object?.family || null,
+    objectFamily:       displayFamily(basic?.object?.family) || displayFamily(objDwc?.family) || null,
     objectLabelPrefix:  objLabel.prefix,
     objectSpeciesHtml:  objLabel.html,
     objectOtuId:        basic?.object_otu_id || null,
-    objectDetail:      obj.object_tag || null,
+    objectHasTaxonName:  hasTaxonName(otuById.get(String(basic?.object_otu_id))),
     objectSpecimenType: objSpecimen?.type || null,
     objectSpecimenId:   objSpecimen?.id || null,
     objectLocality:    objDwc,
@@ -181,5 +198,62 @@ export function makeBiologicalAssociation(
     citationList,
     images,
     distributions
+  }
+}
+
+
+/** The label prefix is anatomy; BiologicalProperty is a different concept. */
+export function anatomicalPartName(entity) {
+  if ((entity?.type || entity?.base_class) !== 'AnatomicalPart') return null
+  const label = entity.label ?? entity.object_label ?? ''
+  const colon = label.indexOf(': ')
+  return colon > 0 ? label.slice(0, colon).trim() : null
+}
+
+/**
+ * Normalize a /basic participant for aggregation, using its underlying OTU
+ * even when the association itself only refers to a specimen or a part.
+ * Keep plain text here: the standard table does not need another v-html source.
+ */
+export function makeStandardParticipant(row, side, otuById = new Map(), dwcBySpecimen = new Map()) {
+  const entity = row[side] || {}
+  const entityType = entity.type || entity.base_class
+  const otuId = row[side + '_otu_id'] || (entity.type === 'Otu' ? entity.id : null)
+  const otu = otuById.get(String(otuId))
+  const originalTaxon = otu?.taxon_name
+  const taxon = otu?.accepted_taxon_name || originalTaxon
+  const unlinked = !!otu && !hasTaxonName(otu)
+  const displayOtuId = otu?.accepted_otu_id || otuId
+  const specimen = resolveSpecimenRef({
+    base_class: entity.type,
+    id: entity.id,
+    object_label: entity.label
+  })
+  const dwc = specimen ? dwcBySpecimen.get(specimenKey(specimen)) : null
+  const part = anatomicalPartName(entity)
+  const label = part ? entity.label.slice(entity.label.indexOf(': ') + 2) : entity.label
+  const scientificName = taxon?.cached || otu?.name || dwc?.scientificName
+    || (!specimen ? label : null)
+  const name = scientificName ? splitScientificName(scientificName) : null
+  // TaxonName identity combines distinct OTUs of the same taxon, without
+  // guessing that unrelated OTUs with identical text must mean the same taxon.
+  const taxonId = taxon?.id || originalTaxon?.cached_valid_taxon_name_id
+    || otu?.taxon_name_id || originalTaxon?.id
+  const key = taxonId ? 'taxon:' + taxonId
+    : otuId ? 'otu:' + otuId
+    : specimen ? specimenKey(specimen)
+    : entity.id ? (entity.type || 'entity') + ':' + entity.id
+    : 'association:' + row.id + ':' + side
+
+  return {
+    key,
+    otuId: hasTaxonName(otu) ? displayOtuId : null,
+    name: taxon?.cached || (unlinked && otu?.name) || name?.italic || label || 'Unidentified taxon',
+    pending: !!otuId && (!otu || (specimen && !dwc)),
+    unlinked,
+    italic: !unlinked && !!scientificName && (!taxon?.rank || /^(subgenus|genus|species|subspecies|variety|form)$/.test(taxon.rank)),
+    family: displayFamily(entity.family) || displayFamily(dwc?.family) || null,
+    part,
+    hasAnatomicalPart: entityType === 'AnatomicalPart'
   }
 }
