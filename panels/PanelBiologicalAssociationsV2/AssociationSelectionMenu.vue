@@ -59,7 +59,9 @@ watch(open, value => {
   }
 })
 const menuId = `association-selection-${useId()}`
-const { trigger, overlay, position } = useAnchoredPopover(open, close, 'end')
+// A draft selection must survive a wheel tick: keep the menu anchored while
+// the table scrolls instead of dismissing it (Apply/Cancel/Escape/outside click).
+const { trigger, overlay, position } = useAnchoredPopover(open, close, 'end', false)
 const displayed = computed(() => props.options.filter(option =>
   (option.label || '(Blank)').toLowerCase().includes(search.value.trim().toLowerCase())))
 const allSelected = computed(() => displayed.value.length > 0

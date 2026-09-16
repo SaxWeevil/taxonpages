@@ -1,4 +1,5 @@
 import { fetchRowsInBatches } from './loadStandardAssociations.js'
+import { shortCitation, stripHtml } from '../_shared/citationText.js'
 
 export function rankName(taxon) {
   return String(taxon?.rank || '').split('::').pop().toLowerCase()
@@ -23,12 +24,16 @@ function citationEntry(row, sources) {
   const source = sources?.get(String(row.source_id))
   return {
     id: row.id,
-    short: row.citation_source_body || '',
+    // Same label the standard view shows: two or more authors collapse to
+    // "First et al., Year"; a single author is left alone. Plain text, so the
+    // filter list, the sort key and the clipboard all read like the cell.
+    short: shortCitation(stripHtml(row.citation_source_body || '')),
     sourceId: row.source_id ?? null,
     sourceType: source?.type ?? '',
     // The full reference for the modal; the panel only has to fetch it when
-    // TaxonWorks did not render one.
-    full: source?.cached || ''
+    // TaxonWorks did not render one. The unshortened body is the last resort
+    // so a non-bibliographic source never loses its author list.
+    full: source?.cached || row.citation_source_body || ''
   }
 }
 
