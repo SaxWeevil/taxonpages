@@ -8,3 +8,4 @@ config/**/*.development.yml
 *.kate-swp
 .ipynb_checkpoints/
 docs/
+.claude/
