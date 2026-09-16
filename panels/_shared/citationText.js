@@ -10,10 +10,11 @@
  *   - ./ImageLightbox.vue
  *   - ../PanelAssertedDistributions/PanelAssertedDistributions.vue
  *   - ../PanelBiologicalAssociationsV2/PanelBiologicalAssociationsV2.vue
+ *   - ../PanelBiologicalAssociationsV2/loadAdvancedAssociations.js
  *   - ../PanelMapV2/components/MapPopup.vue
  *   - ../../modules/keys/KeyView.vue
  *
- * If you change this file, sanity-check all six call sites.
+ * If you change this file, sanity-check all seven call sites.
  */
 
 /**
@@ -29,11 +30,12 @@ export function stripHtml(s) {
 }
 
 /**
- * "Author, Other, Another & Last, 2020:12" -> "Author et al., 2020:12".
- * Only shortens 3+-author citations (a comma before the final "&" is what
- * distinguishes "A, B & C" from a plain two-author "A & B"); anything else
- * — one author, two authors, or a body that doesn't parse as "…, YEAR" at
- * all — is returned unchanged.
+ * "Author, Other, Another & Last, 2020:12" -> "Author et al., 2020:12", and
+ * "Author & Other, 1964" -> "Author et al., 1964".
+ * Every multi-author citation is shortened; the "&" is what marks one as
+ * multi-author. A single author, or a body that doesn't parse as "…, YEAR"
+ * at all (a collector name out of the /basic index, say), is returned
+ * unchanged.
  * @param {string} body
  * @returns {string}
  */
@@ -43,7 +45,8 @@ export function shortCitation(body) {
   if (!m) return body
   const year = m[1]
   const authorsStr = body.slice(0, m.index)
-  const ampIdx = authorsStr.lastIndexOf('&')
-  if (ampIdx < 0 || !authorsStr.slice(0, ampIdx).includes(',')) return body
-  return `${authorsStr.split(',')[0].trim()} et al., ${year}`
+  if (!authorsStr.includes('&')) return body
+  // Split on whichever separator comes first: "A, B & C" and "A & B" both
+  // have to yield "A".
+  return `${authorsStr.split(/[,&]/)[0].trim()} et al., ${year}`
 }

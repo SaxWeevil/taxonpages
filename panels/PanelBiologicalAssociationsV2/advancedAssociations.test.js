@@ -300,6 +300,51 @@ test('Citations use individual Raw data short labels, including year suffixes, f
   assert.equal(filterAdvancedRows(result, { ...settings, filters: { citations: ['Dieckmann, 1989a'] } }).length, 1)
 })
 
+test('two or more authors collapse to "et al."; a single author stays whole', async () => {
+  const settings = defaultAdvancedSettings()
+  const citationRows = [
+    { id: 10, citation_object_id: 1, citation_source_body: 'Meregalli, Borovec & Colonnelli, 2013' },
+    { id: 20, citation_object_id: 1, citation_source_body: 'Dieckmann & Scherf, 1964' },
+    { id: 30, citation_object_id: 1, citation_source_body: 'Scherf, 1964:12' },
+    // A collector name out of the /basic index has no year to parse and must
+    // survive untouched.
+    { id: 40, citation_object_id: 1, citation_source_body: 'Schirok, Tristan' }
+  ]
+  const citations = await loadAdvancedMetadata([1], 'citations', {
+    get: async () => ({ data: citationRows, headers: { 'pagination-total': '4' } })
+  })
+  const result = makeAdvancedRows(rows, taxa, settings, { citations })
+  assert.deepEqual(result[0].citationList.map(citation => citation.short), [
+    'Meregalli et al., 2013', 'Dieckmann et al., 1964', 'Scherf, 1964:12', 'Schirok, Tristan'
+  ])
+  // The cell, the filter list, the sort key and the clipboard read the same.
+  assert.deepEqual(columnValues(result[0], 'citations'), [
+    'Meregalli et al., 2013', 'Dieckmann et al., 1964', 'Scherf, 1964:12', 'Schirok, Tristan'
+  ])
+  assert.equal(filterAdvancedRows(result, {
+    ...settings, filters: { citations: ['Meregalli et al., 2013'] }
+  }).length, 1)
+})
+
+test('the unshortened body stays available for the reference modal', async () => {
+  const settings = defaultAdvancedSettings()
+  const citations = await loadAdvancedMetadata([1], 'citations', { get: async url => {
+    if (new URL(url, 'https://example.test').pathname === '/sources') {
+      // No rendered `cached` -- exactly the case where the shortened label
+      // would otherwise be the only text left.
+      return { data: [{ id: 900, type: 'Source::Bibtex' }], headers: { 'pagination-total': '1' } }
+    }
+    return {
+      data: [{ id: 10, citation_object_id: 1, source_id: 900,
+        citation_source_body: 'Meregalli, Borovec & Colonnelli, 2013' }],
+      headers: { 'pagination-total': '1' }
+    }
+  } })
+  const result = makeAdvancedRows(rows, taxa, settings, { citations })
+  assert.equal(result[0].citationList[0].short, 'Meregalli et al., 2013')
+  assert.equal(result[0].citationList[0].full, 'Meregalli, Borovec & Colonnelli, 2013')
+})
+
 test('only a publication is offered as a reference; people and credits are notes', async () => {
   const settings = defaultAdvancedSettings()
   const requested = []
