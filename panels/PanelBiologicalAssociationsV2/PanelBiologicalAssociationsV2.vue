@@ -42,10 +42,10 @@
           <VToggle
             v-if="viewMode === 'standard' && standardReady"
             size="sm"
-            data-testid="biological-associations-all-relationships"
-            :model-value="showAllRelationships"
-            @update:model-value="setShowAllRelationships"
-          >{{ allRelationshipsLabel }}</VToggle>
+            data-testid="biological-associations-uncertain-records"
+            :model-value="showUncertainRecords"
+            @update:model-value="setShowUncertainRecords"
+          >{{ uncertainRecordsLabel }}</VToggle>
           <RelationshipFilter
             v-if="viewMode === 'expert' && relationshipOptions.length"
             :model-value="selectedRelationships"
@@ -605,8 +605,8 @@ const loadError = ref('')
 const selectedRelationships = ref([])
 // The switch belongs to the browser session, not to the taxon page: someone
 // who widened Standard keeps it widened while browsing from taxon to taxon.
-const STANDARD_ALL_RELATIONSHIPS_KEY = 'taxonpages:standard-all-relationships'
-const showAllRelationships = ref(readBrowserSession(STANDARD_ALL_RELATIONSHIPS_KEY)?.all === true)
+const STANDARD_UNCERTAIN_RECORDS_KEY = 'taxonpages:standard-uncertain-records'
+const showUncertainRecords = ref(readBrowserSession(STANDARD_UNCERTAIN_RECORDS_KEY)?.uncertain === true)
 const relationshipPreferences = ref({})
 const relationshipIdsByName = ref(new Map())
 const relationshipIdsLoaded = ref(false)
@@ -626,18 +626,25 @@ const filteredStandardObjectRows = computed(() =>
 )
 
 // Standard no longer follows the relationship dropdown -- that belongs to Raw
-// data. It applies the evidence rule instead, and the switch widens it to the
-// complete index while the dots keep saying what each row is worth.
+// data. It applies the evidence rule instead: on its own it shows the confirmed
+// records alone, and the switch widens it to the complete index, where the
+// amber and red dots say what the added rows are worth.
 const standardSubjectRows = computed(() =>
-  filterStandardRows(summaryAsSubjectRows.value, showAllRelationships.value))
+  filterStandardRows(summaryAsSubjectRows.value, showUncertainRecords.value))
 const standardObjectRows = computed(() =>
-  filterStandardRows(summaryAsObjectRows.value, showAllRelationships.value))
+  filterStandardRows(summaryAsObjectRows.value, showUncertainRecords.value))
+// Everything the evidence rule holds back: the weak `collected from` records
+// as well as the ones outside the criteria.
 const hiddenStandardCount = computed(() =>
   allAssociationRows.value.filter(row => !isStandardVisible(row)).length)
-const allRelationshipsLabel = computed(() =>
-  showAllRelationships.value || !hiddenStandardCount.value
-    ? 'Enable all relationships'
-    : `Enable all relationships (${hiddenStandardCount.value} hidden)`)
+// Both states name what a click does, so the label itself changes rather than
+// just losing its count.
+const uncertainRecordsLabel = computed(() => {
+  if (showUncertainRecords.value) return 'Show certain records only'
+  return hiddenStandardCount.value
+    ? `Show uncertain records (${hiddenStandardCount.value} hidden)`
+    : 'Show uncertain records'
+})
 const standardEmptyMessage = computed(() => hiddenStandardCount.value
   ? 'No records match the standard criteria.'
   : 'No records found.')
@@ -803,9 +810,9 @@ onBeforeUnmount(() => {
   ++loadRequestId
 })
 
-function setShowAllRelationships(showAll) {
-  showAllRelationships.value = showAll
-  writeBrowserSession(STANDARD_ALL_RELATIONSHIPS_KEY, { all: showAll })
+function setShowUncertainRecords(showUncertain) {
+  showUncertainRecords.value = showUncertain
+  writeBrowserSession(STANDARD_UNCERTAIN_RECORDS_KEY, { uncertain: showUncertain })
 }
 
 function setSelectedRelationships(selected) {
@@ -1411,6 +1418,9 @@ async function fetchDepictions(associationIds, requestId) {
   return result
 }
 
+/** Entries share one shape with the Advanced producers -- { id, short, full }.
+ * `full` is what the ReferenceModal binding reads; a second key name here left
+ * the Raw data modal empty. */
 async function fetchCitations(associationIds, requestId) {
   if (!associationIds.length) return new Map()
 
@@ -1426,7 +1436,7 @@ async function fetchCitations(associationIds, requestId) {
     const entry = {
       id: cit.id,
       short: shortCitation(stripHtml(cit.citation_source_body || '')),
-      citation_source_body: cit.source?.cached || cit.citation_source_body || ''
+      full: cit.source?.cached || cit.citation_source_body || ''
     }
     if (!result.has(cit.citation_object_id)) result.set(cit.citation_object_id, [])
     result.get(cit.citation_object_id).push(entry)

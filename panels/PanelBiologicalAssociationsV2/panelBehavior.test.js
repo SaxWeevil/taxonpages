@@ -561,10 +561,10 @@ test('Raw data clipboard labels append the specimen type rather than its info co
 
 test('all views exclude unnamed OTUs before counts, summaries and Raw data pagination', async t => {
   const basic = [21, 22, 23].map((otuId, index) => ({ id: index + 1, subject_otu_id: 11, object_otu_id: otuId,
-    // 'collected from' on a subject without an anatomical part is what the
-    // Standard evidence rule admits (marked as weak), so the unnamed-OTU
-    // exclusion is what this test measures rather than the evidence filter.
-    relationship: 'collected from', subject: { type: 'Otu', id: 11, label: 'Hypera test', family: 'Curculionidae' },
+    // 'reared from' on a subject without an anatomical part is confirmed
+    // evidence, so the unnamed-OTU exclusion is what this test measures rather
+    // than the evidence filter.
+    relationship: 'reared from', subject: { type: 'Otu', id: 11, label: 'Hypera test', family: 'Curculionidae' },
     object: { type: index === 2 ? 'FieldOccurrence' : 'Otu', id: otuId, label: 'Plant test', family: 'Apiaceae' } }))
   const fullQueries = []
   const response = data => ({ data, headers: { 'pagination-page': '1', 'pagination-per-page': '1', 'pagination-total': String(data.length) } })
@@ -702,6 +702,19 @@ test('Expert citations consume every server page', async t => {
   assert.equal(citations.get(7).length, 2)
 })
 
+test('An Expert citation entry carries the reference under the key the modal reads', async t => {
+  // ReferenceModal is bound to activeCitation.full. A second key name here left
+  // the Raw data modal open but empty while Advanced worked.
+  const state = await createPanel(t, { get: async () => ({
+    data: [{ id: 1, citation_object_id: 7, citation_source_body: 'Scherf, 1964',
+      source: { cached: 'Scherf, H. (1964) Die Entwicklungsstadien der mitteleuropäischen Curculioniden.' } }],
+    headers: { 'pagination-total': '1' }
+  }) })
+  const [citation] = (await state.fetchCitations([7], 0)).get(7)
+  assert.equal(citation.short, 'Scherf, 1964')
+  assert.match(citation.full, /Entwicklungsstadien/)
+})
+
 test('Advanced opens the selected citation rather than combining all references of a record', async t => {
   const state = await createPanel(t, { get: async url => {
     assert.ok(url.startsWith('/citations?'))
@@ -741,7 +754,7 @@ test('header popovers stay within narrow viewports and flip above near the botto
   }
 })
 
-test('Standard shows only evidence rows until the switch widens it', async t => {
+test('Standard shows only confirmed rows until the switch widens it', async t => {
   // One row per category: a larva (stage), an adult collected from a plant
   // (weak), and a legacy record with neither stage nor organ (excluded).
   const basic = [
@@ -771,23 +784,30 @@ test('Standard shows only evidence rows until the switch widens it', async t => 
 
   await state.loadStandardView()
   assert.equal(state.loadError.value, '')
-  assert.equal(state.showAllRelationships.value, false)
-  assert.deepEqual(state.standardSubjectRows.value.map(row => row.id), [1, 2])
-  assert.equal(state.hiddenStandardCount.value, 1)
-  assert.equal(state.headerCount.value, 2)
-  assert.match(state.allRelationshipsLabel.value, /\(1 hidden\)/)
+  assert.equal(state.showUncertainRecords.value, false)
+  // The `collected from` row is uncertain evidence: it waits for the switch
+  // together with the legacy one, and its taxon is not listed meanwhile.
+  assert.deepEqual(state.standardSubjectRows.value.map(row => row.id), [1])
+  assert.equal(state.hiddenStandardCount.value, 2)
+  assert.equal(state.headerCount.value, 1)
+  assert.match(state.uncertainRecordsLabel.value, /\(2 hidden\)/)
   assert.deepEqual(
     state.standardAsSubject.value.map(group => group.counts),
-    [{ confirmed: 1, weak: 0, excluded: 0 }, { confirmed: 0, weak: 1, excluded: 0 }]
+    [{ confirmed: 1, weak: 0, excluded: 0 }]
   )
 
-  state.setShowAllRelationships(true)
+  state.setShowUncertainRecords(true)
   assert.deepEqual(state.standardSubjectRows.value.map(row => row.id), [1, 2, 3])
   assert.equal(state.headerCount.value, 3)
-  assert.equal(state.allRelationshipsLabel.value, 'Enable all relationships')
+  assert.equal(state.uncertainRecordsLabel.value, 'Show certain records only')
+  // Amber and red appear together, each on the taxon the switch brought in.
   assert.deepEqual(
-    state.standardAsSubject.value.at(-1).counts,
-    { confirmed: 0, weak: 0, excluded: 1 }
+    state.standardAsSubject.value.map(group => group.counts),
+    [
+      { confirmed: 1, weak: 0, excluded: 0 },
+      { confirmed: 0, weak: 1, excluded: 0 },
+      { confirmed: 0, weak: 0, excluded: 1 }
+    ]
   )
   // The relationship dropdown no longer speaks for Standard.
   state.selectedRelationships.value = []

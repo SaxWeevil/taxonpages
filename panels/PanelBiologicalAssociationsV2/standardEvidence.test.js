@@ -83,7 +83,7 @@ test('marks group stage, rearing and wild feeding together', () => {
   assert.equal(standardMark('nonsense'), 'excluded')
 })
 
-test('filtering keeps every category but other, until the switch is on', () => {
+test('filtering keeps the confirmed categories only, until the switch is on', () => {
   const rows = [
     row(stagePart('egg'), '[legacy] feeds on'),
     row(otu(), 'feeding observed in the wild on'),
@@ -91,8 +91,10 @@ test('filtering keeps every category but other, until the switch is on', () => {
     row(otu(), 'reared from'),
     row(otu(), '[legacy] feeds on')
   ]
-  assert.deepEqual(rows.map(isStandardVisible), [true, true, true, true, false])
-  assert.equal(filterStandardRows(rows).length, 4)
+  // `collected from` is uncertain evidence: hidden with the excluded row, not
+  // shown next to the confirmed ones.
+  assert.deepEqual(rows.map(isStandardVisible), [true, true, false, true, false])
+  assert.equal(filterStandardRows(rows).length, 3)
   assert.equal(filterStandardRows(rows, true).length, 5)
   // A copy, never the caller's array.
   assert.notEqual(filterStandardRows(rows, true), rows)
