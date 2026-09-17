@@ -35,11 +35,6 @@
         <span class="legend-dot mt-1 shrink-0" :class="mark.class" />
         <span>{{ mark.reason }}</span>
       </span>
-      <span class="mt-2 block text-base-soft">
-        A category a row has no records of keeps its slot empty, so the three
-        colours read as their own columns. Select the dots of a row to see how
-        its records split between them.
-      </span>
     </span>
     </Teleport>
   </span>
