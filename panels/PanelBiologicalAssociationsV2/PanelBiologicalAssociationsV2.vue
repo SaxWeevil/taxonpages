@@ -35,27 +35,17 @@
           class="flex w-full flex-wrap items-center justify-start gap-3 sm:ml-auto sm:w-auto sm:justify-end"
         >
           <!-- Standard is a curated evidence view; this switch, not a
-               relationship dropdown, is what widens it. -->
-          <button
+               relationship dropdown, is what widens it. It is the package's
+               own VToggle at the same size the Advanced toolbar teleports into
+               this very row, so the two switches beside each other are one
+               control, not two lookalikes. -->
+          <VToggle
             v-if="viewMode === 'standard' && standardReady"
-            type="button"
-            role="switch"
-            :aria-checked="showAllRelationships"
+            size="sm"
             data-testid="biological-associations-all-relationships"
-            class="flex cursor-pointer items-center gap-2 text-sm"
-            @click="setShowAllRelationships(!showAllRelationships)"
-          >
-            <span
-              class="bas-switch-track relative inline-block h-5 w-9 shrink-0 rounded-full border transition-colors"
-              :class="showAllRelationships ? 'bg-secondary' : 'bg-base-muted'"
-            >
-              <span
-                class="bas-switch-knob absolute top-[0.15rem] h-3.5 w-3.5 rounded-full border bg-base-foreground transition-all"
-                :class="showAllRelationships ? 'left-[1.1rem]' : 'left-[0.1rem]'"
-              />
-            </span>
-            <span>{{ allRelationshipsLabel }}</span>
-          </button>
+            :model-value="showAllRelationships"
+            @update:model-value="setShowAllRelationships"
+          >{{ allRelationshipsLabel }}</VToggle>
           <RelationshipFilter
             v-if="viewMode === 'expert' && relationshipOptions.length"
             :model-value="selectedRelationships"
@@ -1750,14 +1740,5 @@ async function loadBiologicalAssociations(page = 1) {
 }
 :deep(.tp-pagination button) {
   border-color: color-mix(in oklab, var(--color-base-content) 20%, transparent);
-}
-
-/* Off, the switch is base-muted on a base-foreground card and its knob is that
-   same card colour -- 48 on 38 in the dark theme, which is no switch at all.
-   Both therefore carry the outline the pagination buttons above use, so track
-   and knob stay readable off and on, in either theme. */
-.bas-switch-track,
-.bas-switch-knob {
-  border-color: color-mix(in oklab, var(--color-base-content) 30%, transparent);
 }
 </style>

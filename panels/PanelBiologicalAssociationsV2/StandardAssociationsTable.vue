@@ -1,6 +1,9 @@
 <template>
   <div ref="tableRoot">
-    <VTable class="standard-association-table">
+    <VTable
+      class="standard-association-table"
+      :style="{ '--standard-count-digits': maxCountDigits }"
+    >
       <VTableHeader class="normal-case">
         <VTableHeaderRow>
           <VTableHeaderCell class="standard-col-parts">
@@ -115,6 +118,11 @@ function rowMarks(row) {
 const allRows = computed(() => props.sections.flatMap(section => section.rows))
 const visibleRows = computed(() => allRows.value)
 const visibleParts = computed(() => uniquePlantParts(visibleRows.value))
+/** The dots keep their column because every row's count reserves the same
+ *  width. Reserve only what the widest count in the table actually needs -- a
+ *  fixed three digits throws away two digit widths on every row. */
+const maxCountDigits = computed(() =>
+  Math.max(1, ...visibleRows.value.map(row => String(Number(row.count) || 0).length)))
 const visibleSections = computed(() => props.sections.map(section => {
   const rows = visibleRows.value.filter(row => section.rows.includes(row))
   const families = [...new Set(rows.flatMap(row => row.families.length ? row.families : ['']))]
@@ -196,15 +204,17 @@ const visibleSections = computed(() => props.sections.map(section => {
   gap: 0.375rem;
 }
 
-/* Reserve three digits so the dot columns do not move between rows counting 1,
-   10 or 100 records. VButton size="xs" adds px-1.5 and a 1px border per side;
-   tabular-nums makes every digit the same width, which also lines up the
-   counts themselves on their last digit. The exact value only decides whether
-   a three-digit count fits -- the alignment itself comes from every row
-   reserving the same width. */
+/* The count reserves as many digits as the widest count in the table needs
+   (--standard-count-digits, set by the component), so the dot columns still do
+   not move between rows counting 1, 10 or 100 records -- without every row
+   holding three digits free. .tp-button is content-box, so this min-width is
+   the digit area alone; VButton size="xs" adds px-1.5 and a 1px border around
+   it. tabular-nums makes every digit the same width; the 2px cover 1ch (the
+   proportional zero) being a hair narrower than a tabular digit. Left aligned,
+   so the count and the dots read as one block flush with the column edge. */
 .standard-association-table :deep(.standard-records-count) {
-  min-width: calc(3ch + 0.75rem + 2px);
-  text-align: right;
+  min-width: calc(var(--standard-count-digits, 3) * 1ch + 2px);
+  text-align: left;
   font-variant-numeric: tabular-nums;
 }
 

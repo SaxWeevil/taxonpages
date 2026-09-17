@@ -75,3 +75,24 @@ test('sections keep their rows grouped by family for the table body', async t =>
   assert.deepEqual(section.families.map(family => family.rows.length), [1, 1])
   assert.deepEqual(state.visibleParts.value, ['leaf'])
 })
+
+// The dots only stay in one column because every count reserves the same
+// width -- but reserving a fixed three digits wastes two digit widths per row.
+test('the count reserves only as many digits as the widest count needs', async t => {
+  const rows = [
+    group({ confirmed: 7 }),
+    group({ weak: 120 }, { key: 'taxon:2', name: 'Achillea millefolium' })
+  ]
+  const state = await createTable(t, [{ heading: 'As subject', rows }])
+  assert.equal(state.maxCountDigits.value, 3)
+})
+
+test('two-digit counts do not reserve a third digit', async t => {
+  const state = await createTable(t, [{ heading: 'As subject', rows: [group({ confirmed: 14 })] }])
+  assert.equal(state.maxCountDigits.value, 2)
+})
+
+test('an empty table still reserves one digit', async t => {
+  const state = await createTable(t)
+  assert.equal(state.maxCountDigits.value, 1)
+})
