@@ -13,7 +13,12 @@
             </span>
           </VTableHeaderCell>
           <VTableHeaderCell class="standard-col-taxon">Associated taxon</VTableHeaderCell>
-          <VTableHeaderCell class="standard-col-records">Records</VTableHeaderCell>
+          <VTableHeaderCell class="standard-col-records">
+            <span class="inline-flex items-center gap-1">
+              Records
+              <EvidenceLegendInfo data-copy-ignore />
+            </span>
+          </VTableHeaderCell>
         </VTableHeaderRow>
       </VTableHeader>
       <VTableBody>
@@ -57,20 +62,34 @@
               >{{ row.count }}</VButton>
               <!-- Every category keeps its slot, so green, amber and red each
                    read as their own column down the table. An absent one is
-                   hidden from sight and from screen readers. The dots carry no
-                   text, so table copying stays untouched. -->
-              <span class="standard-marks">
+                   hidden from sight. The dots carry no text, so table copying
+                   stays untouched.
+
+                   The group is one control, not three: a native title only ever
+                   showed on hover, so on a phone the breakdown was unreachable,
+                   and an 8px dot is far under the 24px a finger needs. The
+                   button's accessible name carries the whole breakdown, so the
+                   dots themselves are decorative. -->
+              <button
+                type="button"
+                class="standard-marks"
+                :aria-label="marksLabel(row)"
+                :aria-expanded="activeRowKey === row.key"
+                @click.stop="toggleMarks(row, $event)"
+                @mouseenter="hoverMarks(row, $event)"
+                @mouseleave="clearHoverMarks"
+                @focus="hoverMarks(row, $event)"
+                @blur="clearHoverMarks"
+                @keydown.escape.stop="closeMarks"
+              >
                 <span
                   v-for="mark in rowMarks(row)"
                   :key="mark.key"
                   class="evidence-dot"
                   :class="[mark.class, { 'evidence-dot-empty': !mark.count }]"
-                  :role="mark.count ? 'img' : undefined"
-                  :aria-hidden="mark.count ? undefined : 'true'"
-                  :aria-label="mark.count ? mark.title : undefined"
-                  :title="mark.count ? mark.title : undefined"
+                  aria-hidden="true"
                 />
-              </span>
+              </button>
             </span>
           </VTableBodyCell>
             </VTableBodyRow>
@@ -78,15 +97,51 @@
         </template>
       </VTableBody>
     </VTable>
+
+    <!-- One popover for the table, not one per row: the composable installs
+         four global listeners and a ResizeObserver, and the trigger moves to
+         whichever row is active. aria-hidden, because the button's accessible
+         name already says the same thing -- and nothing in here is focusable. -->
+    <Teleport to="body">
+      <div
+        v-if="activeRow"
+        :key="activeRow.key"
+        ref="marksOverlay"
+        aria-hidden="true"
+        :style="marksPosition"
+        class="fixed z-30 box-border w-[min(22rem,calc(100vw-2rem))] max-h-[calc(100vh-2rem)] overflow-y-auto rounded-md border border-base-border bg-base-foreground p-2 text-base-content text-left text-xs font-normal normal-case leading-snug shadow-lg"
+      >
+        <span class="font-medium">{{ activeRow.name }} — {{ activeRow.count }} records</span>
+        <span
+          v-for="mark in rowMarkLines(activeRow)"
+          :key="mark.key"
+          class="mt-1 flex items-start gap-2"
+        >
+          <span class="evidence-dot mt-1 shrink-0" :class="mark.class" />
+          <span><span class="font-medium">{{ mark.count }}</span> {{ mark.reason }}</span>
+        </span>
+        <span
+          v-if="!rowMarkLines(activeRow).length"
+          class="mt-1 block text-base-soft"
+        >No records classified.</span>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import EvidenceLegendInfo from './EvidenceLegendInfo.vue'
 import PlantPartIcons from './PlantPartIcons.vue'
 import PlantPartInfo from './PlantPartInfo.vue'
 import { uniquePlantParts } from './plantPartIcons.js'
+import {
+  standardMarksLabel,
+  standardRowMarkLines,
+  standardRowMarks
+} from './standardEvidence.js'
 import { copyTableSelection } from './tableClipboard.js'
+import { useAnchoredPopover } from './useAnchoredPopover.js'
 
 const props = defineProps({
   sections: { type: Array, required: true }
@@ -98,26 +153,74 @@ const copySelection = event => copyTableSelection(event, tableRoot.value)
 onMounted(() => document.addEventListener('copy', copySelection))
 onBeforeUnmount(() => document.removeEventListener('copy', copySelection))
 // Stage, rearing and wild feeding share the green dot: the mark says how much a
-// record is worth in the field, not which rule let it in.
-const MARK_STYLES = [
-  { key: 'confirmed', class: 'text-success', reason: 'immature stage, or adult reared from or feeding observed in the wild' },
-  { key: 'weak', class: 'text-warning', reason: 'adult collected from' },
-  { key: 'excluded', class: 'text-danger', reason: 'vague relationships of adults: legacy, feeding observed in experimental setup and undefined relationship' }
-]
-
-/** All three slots, always, in a fixed order -- a row that only has red must
- *  not put its dot where its neighbour's green one sits. */
+// record is worth in the field, not which rule let it in. The wording itself
+// lives in standardEvidence.js, shared with the column heading's legend.
 function rowMarks(row) {
-  const counts = row.counts || {}
-  return MARK_STYLES.map(mark => {
-    const count = counts[mark.key] || 0
-    return { ...mark, count, title: `${count} of ${row.count} records: ${mark.reason}` }
-  })
+  return standardRowMarks(row)
+}
+
+function rowMarkLines(row) {
+  return standardRowMarkLines(row)
+}
+
+function marksLabel(row) {
+  return standardMarksLabel(row)
+}
+
+// Hover keeps the desktop behaviour the native title used to give; the click
+// toggle is what a touch device has. Two flags, because close() must clear both
+// -- a tap fires mouseenter as well, and a stuck hover flag would stop the next
+// tap from closing.
+const openRowKey = ref(null)
+const hoverRowKey = ref(null)
+const activeRowKey = computed(() => openRowKey.value ?? hoverRowKey.value)
+
+/** Read matchMedia inside the handler: dev:ssr renders without a window. */
+function canHover() {
+  return typeof window !== 'undefined'
+    && window.matchMedia?.('(hover: hover)')?.matches === true
+}
+
+function toggleMarks(row, event) {
+  if (openRowKey.value === row.key) return closeMarks()
+  marksTrigger.value = event?.currentTarget || null
+  openRowKey.value = row.key
+}
+
+function hoverMarks(row, event) {
+  if (!canHover()) return
+  marksTrigger.value = event?.currentTarget || null
+  hoverRowKey.value = row.key
+}
+
+function clearHoverMarks() {
+  hoverRowKey.value = null
+}
+
+function closeMarks() {
+  openRowKey.value = null
+  hoverRowKey.value = null
 }
 
 const allRows = computed(() => props.sections.flatMap(section => section.rows))
 const visibleRows = computed(() => allRows.value)
 const visibleParts = computed(() => uniquePlantParts(visibleRows.value))
+// Resolve through the current rows, so a row that leaves the table (the
+// uncertain-records switch, a new page) takes its popover with it instead of
+// leaving it hanging off a row that is no longer there.
+const rowsByKey = computed(() => new Map(visibleRows.value.map(row => [row.key, row])))
+const activeRow = computed(() => activeRowKey.value == null
+  ? null
+  : rowsByKey.value.get(activeRowKey.value) || null)
+// Declared after activeRow on purpose: useAnchoredPopover's watch() reads its
+// visible source once during setup, which would hit activeRow's temporal dead
+// zone if this ran earlier. Records is the rightmost column, hence align 'end'.
+const {
+  trigger: marksTrigger,
+  overlay: marksOverlay,
+  position: marksPosition
+} = useAnchoredPopover(computed(() => !!activeRow.value), closeMarks, 'end')
+
 /** The dots keep their column because every row's count reserves the same
  *  width. Reserve only what the widest count in the table actually needs -- a
  *  fixed three digits throws away two digit widths on every row. */
@@ -192,16 +295,33 @@ const visibleSections = computed(() => props.sections.map(section => {
   white-space: nowrap;
 }
 
+/* 0.75rem, not 0.5rem: the dots are their own tap target now and must not sit
+   a thumb-width from the count button, which drills into Raw data. */
 .standard-records-cell {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
 }
 
+/* The visible disc row stays 36x8px; the button is 24px tall so the tap target
+   meets WCAG 2.5.8 (24x24 CSS px) on both axes -- 36px wide already does. The
+   count button beside it is 26px tall, so the row never grows for this. */
 .standard-marks {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.standard-marks:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 0.25rem;
 }
 
 /* The count reserves as many digits as the widest count in the table needs

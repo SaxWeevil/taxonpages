@@ -96,3 +96,92 @@ test('an empty table still reserves one digit', async t => {
   const state = await createTable(t)
   assert.equal(state.maxCountDigits.value, 1)
 })
+
+// The dot group is the only way into a row's breakdown on a touch device, so
+// its open/close bookkeeping is worth pinning down. One popover serves the
+// whole table; the trigger element moves to whichever row is active.
+function withHover(t, matches) {
+  const saved = 'window' in globalThis ? globalThis.window : undefined
+  const had = 'window' in globalThis
+  globalThis.window = { ...(saved || {}), matchMedia: () => ({ matches }) }
+  t.after(() => {
+    if (had) globalThis.window = saved
+    else delete globalThis.window
+  })
+}
+
+const rowsSection = (...rows) => [{ heading: 'As subject', rows }]
+const stubEvent = () => ({ currentTarget: { tag: 'button' } })
+
+test('tapping the dots opens that row, tapping again closes it', async t => {
+  const row = group({ confirmed: 3 })
+  const state = await createTable(t, rowsSection(row))
+  assert.equal(state.activeRow.value, null)
+
+  state.toggleMarks(row, stubEvent())
+  assert.equal(state.activeRow.value.key, 'taxon:1')
+  state.toggleMarks(row, stubEvent())
+  assert.equal(state.activeRow.value, null)
+})
+
+test('tapping another row moves the single popover instead of opening a second', async t => {
+  const first = group({ confirmed: 3 })
+  const second = group({ weak: 2 }, { key: 'taxon:2', name: 'Achillea millefolium' })
+  const state = await createTable(t, rowsSection(first, second))
+
+  state.toggleMarks(first, stubEvent())
+  state.toggleMarks(second, stubEvent())
+  assert.equal(state.activeRow.value.key, 'taxon:2')
+})
+
+test('closeMarks clears the click flag and the hover flag together', async t => {
+  withHover(t, true)
+  const row = group({ confirmed: 3 })
+  const state = await createTable(t, rowsSection(row))
+
+  state.hoverMarks(row, stubEvent())
+  state.toggleMarks(row, stubEvent())
+  state.closeMarks()
+  // A hover flag left behind would stop the next tap from closing.
+  assert.equal(state.activeRow.value, null)
+})
+
+test('hover is ignored without a hovering pointer, so a tap is not stuck open', async t => {
+  const row = group({ confirmed: 3 })
+  const state = await createTable(t, rowsSection(row))
+
+  withHover(t, false)
+  state.hoverMarks(row, stubEvent())
+  assert.equal(state.activeRow.value, null)
+
+  globalThis.window.matchMedia = () => ({ matches: true })
+  state.hoverMarks(row, stubEvent())
+  assert.equal(state.activeRow.value.key, 'taxon:1')
+  state.clearHoverMarks()
+  assert.equal(state.activeRow.value, null)
+})
+
+test('a row leaving the table takes its popover with it', async t => {
+  const row = group({ confirmed: 3 })
+  // Reactive, so removing the row actually invalidates the computed chain the
+  // popover resolves through -- the same way a prop change would.
+  const sections = vue.reactive([{ heading: 'As subject', rows: [row] }])
+  const state = await createTable(t, sections)
+
+  state.toggleMarks(row, stubEvent())
+  assert.equal(state.activeRow.value.key, 'taxon:1')
+  // What the uncertain-records switch or a page change does.
+  sections[0].rows = []
+  assert.equal(state.activeRow.value, null)
+})
+
+test('the dot group names its whole breakdown, so it needs no visible text', async t => {
+  const state = await createTable(t)
+  const label = state.marksLabel(group({ confirmed: 8, weak: 3 }))
+  assert.ok(label.includes('8 of 11 records: immature stage'))
+  assert.ok(label.includes('3 of 11 records: adult collected from'))
+  assert.ok(!label.includes('vague relationships'))
+  // The popover lists the same categories, the empty slot aside.
+  assert.deepEqual(state.rowMarkLines(group({ confirmed: 8, weak: 3 })).map(mark => mark.key),
+    ['confirmed', 'weak'])
+})
