@@ -4,10 +4,11 @@
  * Classifies a /biological_associations/basic row for the Standard view.
  *
  * Standard is the field view: it answers "where is it worth looking for this
- * beetle?", so it shows developmental stages, rearings and wild feeding
- * observations, and keeps weaker evidence visible but marked. Everything else
- * -- above all the 2726 `[legacy] feeds on` rows that carry neither a stage nor
- * an organ -- stays behind the "enable all relationships" switch.
+ * beetle?", so by default it shows only confirmed evidence -- developmental
+ * stages, rearings and wild feeding observations. Everything weaker stays
+ * behind the "show uncertain records" switch: being `collected from` a plant
+ * (amber) as well as the 2726 `[legacy] feeds on` rows that carry neither a
+ * stage nor an organ (red). The switch widens the view to both at once.
  *
  * Pure module: no Vue, no HTTP. The classification reads the SUBJECT side,
  * which biological-association data models as the animal on either page
@@ -58,7 +59,8 @@ export function classifyStandardRow(row) {
 // Stage, rearing and wild feeding share one mark: each of them ties the beetle
 // to that host directly, and the dot says how much a record is worth in the
 // field, not which rule admitted it. Being collected from a plant does not --
-// hence the separate weak mark.
+// hence the separate weak mark, which is uncertain evidence and therefore
+// hidden with the excluded rows until the switch is on.
 const MARK_BY_CATEGORY = Object.freeze({
   stage: 'confirmed',
   'wild-feeding': 'confirmed',
@@ -75,12 +77,14 @@ export function standardRowMark(row) {
   return standardMark(classifyStandardRow(row))
 }
 
+/** Confirmed evidence only -- a `collected from` adult is uncertain and waits
+ *  for the switch, together with everything outside the criteria. */
 export function isStandardVisible(row) {
-  return classifyStandardRow(row) !== 'other'
+  return standardRowMark(row) === 'confirmed'
 }
 
-export function filterStandardRows(rows = [], showAllRelationships = false) {
-  return showAllRelationships ? [...rows] : rows.filter(isStandardVisible)
+export function filterStandardRows(rows = [], showUncertainRecords = false) {
+  return showUncertainRecords ? [...rows] : rows.filter(isStandardVisible)
 }
 
 export function emptyStandardCounts() {

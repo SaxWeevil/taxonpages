@@ -28,16 +28,20 @@ is omitted from the table. If the page's taxon appears in both directions, the
 lists remain separate. Descendant taxa are included on genus/family/higher pages.
 
 - Standard is the **field view**: it answers where it is worth looking for this
-  beetle, so it shows only records whose **Subject** carries an immature stage
-  (`egg`, `larvae`, `pupa`, `nidus`), or whose Subject is an adult or carries no
-  anatomical part and whose relationship is `feeding observed in the wild on`,
-  `reared from` or `collected from`. Rearing counts as confirmed evidence
-  because it shows the host carried the development, not just the adult; being
-  `collected from` a plant shows neither, so it is marked as weaker evidence.
-  Everything else — above all the legacy feeding records that name neither a
-  stage nor an organ — stays behind the **Enable all relationships** switch at
-  the upper right, which carries the number of hidden records and holds for the
-  browser session. With the switch on, those records appear marked red.
+  beetle, so on its own it shows only **confirmed** records — those whose
+  **Subject** carries an immature stage (`egg`, `larvae`, `pupa`, `nidus`), or
+  whose Subject is an adult or carries no anatomical part and whose relationship
+  is `feeding observed in the wild on` or `reared from`. Rearing counts as
+  confirmed evidence because it shows the host carried the development, not just
+  the adult. Being `collected from` a plant shows neither, so it counts as
+  uncertain evidence and stays hidden together with everything outside the
+  criteria — above all the legacy feeding records that name neither a stage nor
+  an organ. Both appear together through the switch at the upper right, which
+  reads **Show uncertain records (N hidden)** while off and **Show certain
+  records only** while on, so the label always names what a click does. It holds
+  for the browser session. With the switch on, the added records appear marked
+  amber (`collected from`) and red (outside the criteria), and the taxa they
+  belong to join the table.
 - Each row aggregates the records of one associated taxon and can therefore mix
   evidence. A row carries **one glowing dot per category** behind the Records
   count, never a single worst-case verdict: green for a stage, a rearing or a
@@ -94,7 +98,9 @@ lists remain separate. Descendant taxa are included on genus/family/higher pages
   classification render as blank cells. Biological properties are not
   interpreted as anatomy.
 - The Standard table omits the Relationship column, and has no relationship
-  dropdown: the evidence rule above and its switch decide what it shows. A
+  dropdown: the evidence rule above and its switch decide what it shows. With
+  the switch off every dot in the table is green, because only confirmed records
+  are counted at all. A
   checkbox dropdown in **Raw data** lists every available relationship. Raw data applies
   the selected relationship IDs on the server before pagination. Relationships containing `legacy` or
   `undefined relationship` are initially disabled; informative relationships
