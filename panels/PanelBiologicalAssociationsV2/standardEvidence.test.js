@@ -5,7 +5,11 @@ import {
   filterStandardRows,
   isStandardVisible,
   standardMark,
+  standardMarksLabel,
   standardRowMark,
+  standardRowMarkLines,
+  standardRowMarks,
+  STANDARD_MARK_STYLES,
   subjectStage
 } from './standardEvidence.js'
 
@@ -104,4 +108,56 @@ test('a missing subject or relationship falls to other rather than throwing', ()
   assert.equal(classifyStandardRow({}), 'other')
   assert.equal(classifyStandardRow(undefined), 'other')
   assert.equal(subjectStage(undefined), '')
+})
+
+// The Records column's dots: the wording lives here so the column heading's
+// legend and a row's breakdown cannot drift apart.
+const group = (counts, extra = {}) => ({
+  name: 'Dianthus carthusianorum',
+  count: Object.values(counts).reduce((sum, n) => sum + n, 0),
+  counts: { confirmed: 0, weak: 0, excluded: 0, ...counts },
+  ...extra
+})
+
+test('the three mark styles keep their order and their theme tokens', () => {
+  assert.deepEqual(STANDARD_MARK_STYLES.map(mark => mark.key),
+    ['confirmed', 'weak', 'excluded'])
+  assert.deepEqual(STANDARD_MARK_STYLES.map(mark => mark.class),
+    ['text-success', 'text-warning', 'text-danger'])
+  // Frozen: the table renders straight from this list on every row.
+  assert.throws(() => { STANDARD_MARK_STYLES.push({}) })
+})
+
+test('standardRowMarks keeps all three slots, standardRowMarkLines only what the row has', () => {
+  const marks = standardRowMarks(group({ confirmed: 8, weak: 3 }))
+  assert.deepEqual(marks.map(mark => mark.count), [8, 3, 0])
+  assert.equal(marks[0].title,
+    '8 of 11 records: immature stage, or adult reared from or feeding observed in the wild')
+  assert.equal(marks[1].title, '3 of 11 records: adult collected from')
+
+  const lines = standardRowMarkLines(group({ confirmed: 8, weak: 3 }))
+  assert.deepEqual(lines.map(mark => mark.key), ['confirmed', 'weak'])
+})
+
+test('a row with no counts still reserves every slot and reports zero of zero', () => {
+  const marks = standardRowMarks({ name: 'X' })
+  assert.deepEqual(marks.map(mark => mark.count), [0, 0, 0])
+  assert.match(marks[0].title, /^0 of 0 records: /)
+  assert.deepEqual(standardRowMarkLines({ name: 'X' }), [])
+})
+
+test('the accessible name carries the whole breakdown, absent categories aside', () => {
+  const label = standardMarksLabel(group({ confirmed: 8, weak: 3 }))
+  assert.match(label, /^Evidence for Dianthus carthusianorum: /)
+  assert.ok(label.includes('8 of 11 records: immature stage'))
+  assert.ok(label.includes('3 of 11 records: adult collected from'))
+  // The empty red slot is visual alignment, not something to read out.
+  assert.ok(!label.includes('vague relationships'))
+})
+
+test('the accessible name survives a row without classified records', () => {
+  assert.equal(standardMarksLabel(group({})),
+    'Evidence for Dianthus carthusianorum: no records classified')
+  assert.equal(standardMarksLabel(undefined),
+    'Evidence for this taxon: no records classified')
 })

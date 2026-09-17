@@ -47,13 +47,31 @@ lists remain separate. Descendant taxa are included on genus/family/higher pages
   count, never a single worst-case verdict: green for a stage, a rearing or a
   wild feeding observation, amber for `collected from`, red for a record outside
   the criteria. Every category keeps its slot even when that row has none of it, and
-  the count sits right-aligned in a box wide enough for three digits, so the
-  three colours read as their own columns down the table whether a row counts 1,
-  10 or 100 records. The dot's hover and accessible name name the share, for
-  example “3 of 13 records: adult collected from”; an empty slot is
-  hidden from screen readers. The dots carry no text, so copying the table is
-  unaffected. An empty Standard table distinguishes “No records match the
-  standard criteria.” from “No records found.”
+  the count sits left-aligned in a box as wide as the widest count in the table,
+  so the three colours read as their own columns down the table whether a row
+  counts 1, 10 or 100 records.
+- What green, amber and red **mean** is the same for every row, so it lives once
+  in the **Records** column heading, behind the same ⓘ control the Anatomical
+  parts heading uses — not repeated in each row. `EvidenceLegendInfo.vue` reads
+  `STANDARD_MARK_STYLES` from `standardEvidence.js`, the very list the rows
+  render from, so legend and table wording cannot drift apart.
+- How a **particular row** splits between the three is the row's own data, so it
+  stays at the row: the three dots together are **one control** — not three —
+  and opening it shows that row's breakdown (“Dianthus carthusianorum — 7
+  records”, then a line per category it actually has). Pointing devices get it
+  on hover as before; a tap or Enter opens it on a touch screen, where the
+  native `title` it replaced never appeared at all. Its accessible name carries
+  the whole breakdown (“Evidence for …: 3 of 13 records: adult collected
+  from”), so a screen reader needs no opening at all, and the dots themselves
+  are `aria-hidden` decoration. The visible discs stay 36×8 px, but the control
+  is 24 px tall and sits 0.75 rem from the count button, so the tap target meets
+  WCAG 2.5.8 on both axes without changing row height or the dot columns'
+  alignment. One popover serves the whole table and its anchor moves to the
+  active row, rather than one composable instance per row.
+- The dots carry no text, so copying the table is unaffected: the control holds
+  only empty spans, its breakdown is an `aria-label`, and only the heading's
+  ⓘ is marked `data-copy-ignore`. An empty Standard table distinguishes “No
+  records match the standard criteria.” from “No records found.”
 - The four columns are **Anatomical parts**, **Family**, **Associated taxon** and
   a clickable **Records** count. The first column always describes the plant:
   it comes from the associated plant on a beetle page and from the current
@@ -483,7 +501,15 @@ a publication is a reference with its full text, a `Source::Verbatim` credit and
 an index collector name are dimmed notes, and both remain selectable in the
 column filter. `standardAssociations.test.js` covers the bulk-load concurrency
 returning identical rows in identical order, abandoning a stale bulk load, and
-the row ceiling stopping with a labelled partial list.
+the row ceiling stopping with a labelled partial list. For the Records dots,
+`standardEvidence.test.js` covers the frozen mark order and its theme tokens,
+all three slots surviving a row with no counts, the breakdown listing only the
+categories a row has, and the accessible name built from them;
+`standardTable.test.js` covers opening and closing one row, a second row moving
+the single popover rather than adding one, `closeMarks` clearing the click and
+hover flags together, hover being ignored without a hovering pointer (otherwise
+a tap leaves the popover stuck open), and a row leaving the table taking its
+popover with it.
 
 Each of these was checked once against the defect it exists for, by
 reintroducing that defect in a throwaway copy under `panels/.redcheck/` — never
