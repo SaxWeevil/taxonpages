@@ -24,8 +24,16 @@ export const STAGE_PARTS = Object.freeze(['egg', 'larvae', 'pupa', 'nidus'])
 /** An adult, or no anatomical part at all -- these need the relationship. */
 export const ADULT_PARTS = Object.freeze(['adult', ''])
 export const WILD_FEEDING_RELATIONSHIP = 'feeding observed in the wild on'
-/** Rearing shows the host carried the development, not just the adult. */
-export const REARED_FROM_RELATIONSHIP = 'reared from'
+/**
+ * Rearing shows the host carried the development, not just the adult.
+ * `reared from galls on` is a relationship of its own in TaxonWorks, not a
+ * wording variant, so it is listed rather than matched by prefix -- a prefix
+ * would also admit relationships that merely start the same way.
+ */
+export const REARED_FROM_RELATIONSHIPS = Object.freeze([
+  'reared from',
+  'reared from galls on'
+])
 export const COLLECTED_FROM_RELATIONSHIP = 'collected from'
 
 /**
@@ -42,9 +50,9 @@ export function subjectStage(row) {
 /**
  * 'stage'          egg/larvae/pupa/nidus, whatever the relationship says
  * 'wild-feeding'   adult or no part + feeding observed in the wild on
- * 'reared'         adult or no part + reared from
+ * 'reared'         adult or no part + reared from / reared from galls on
  * 'collected-from' adult or no part + collected from (weak evidence)
- * 'other'          everything else -- hidden unless the switch is on
+ * 'other'          everything else
  */
 export function classifyStandardRow(row) {
   const stage = subjectStage(row)
@@ -52,7 +60,7 @@ export function classifyStandardRow(row) {
   if (ADULT_PARTS.includes(stage)) {
     const relationship = row?.relationship?.trim?.() || ''
     if (relationship === WILD_FEEDING_RELATIONSHIP) return 'wild-feeding'
-    if (relationship === REARED_FROM_RELATIONSHIP) return 'reared'
+    if (REARED_FROM_RELATIONSHIPS.includes(relationship)) return 'reared'
     if (relationship === COLLECTED_FROM_RELATIONSHIP) return 'collected-from'
   }
   return 'other'
@@ -92,7 +100,7 @@ export const STANDARD_MARK_STYLES = Object.freeze([
   Object.freeze({
     key: 'confirmed',
     class: 'text-success',
-    reason: 'immature stage, or adult reared from or feeding observed in the wild'
+    reason: 'immature stage, or adult reared from (including galls) or feeding observed in the wild'
   }),
   Object.freeze({
     key: 'weak',
