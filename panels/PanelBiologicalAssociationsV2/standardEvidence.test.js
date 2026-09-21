@@ -60,6 +60,24 @@ test('an adult or partless subject needs the relationship to qualify', () => {
   }
 })
 
+test('a rearing counts whatever part the reared specimen was filed under', () => {
+  // The project's two gall rearings sit on `larva`, in the singular, which is
+  // in neither STAGE_PARTS nor ADULT_PARTS. The relationship carries the
+  // evidence, so the part must not be able to veto it.
+  assert.equal(classifyStandardRow(row(stagePart('larva'), 'reared from galls on')), 'reared')
+  assert.equal(classifyStandardRow(row(stagePart('larva'), 'reared from')), 'reared')
+  // Even a part whose term cannot be read at all: unreadable says nothing
+  // about the rearing.
+  const unnamed = { id: 95, type: 'AnatomicalPart', label: 'Hypera arator' }
+  assert.equal(classifyStandardRow(row(unnamed, 'reared from galls on')), 'reared')
+  // Only the rearing is ungated -- the same unlisted part with any other
+  // relationship still falls out.
+  assert.equal(classifyStandardRow(row(stagePart('larva'), 'collected from')), 'other')
+  assert.equal(classifyStandardRow(row(stagePart('larva'), 'feeding observed in the wild on')), 'other')
+  // And a listed stage still reports which rule admitted it.
+  assert.equal(classifyStandardRow(row(stagePart('larvae'), 'reared from galls on')), 'stage')
+})
+
 test('a specimen subject without an anatomical part is treated as partless', () => {
   const specimen = { id: 5000, type: 'FieldOccurrence', label: 'FieldOccurrence 5000; uuid; Germany' }
   assert.equal(subjectStage(row(specimen, 'collected from')), '')
@@ -133,7 +151,7 @@ test('standardRowMarks keeps all three categories, standardRowMarkLines only wha
   const marks = standardRowMarks(group({ confirmed: 8, weak: 3 }))
   assert.deepEqual(marks.map(mark => mark.count), [8, 3, 0])
   assert.equal(marks[0].title,
-    '8 of 11 records: immature stage, or adult reared from (including galls) or feeding observed in the wild')
+    '8 of 11 records: immature stage, reared from (including galls), or adult feeding observed in the wild')
   assert.equal(marks[1].title, '3 of 11 records: adult collected from')
 
   const lines = standardRowMarkLines(group({ confirmed: 8, weak: 3 }))
