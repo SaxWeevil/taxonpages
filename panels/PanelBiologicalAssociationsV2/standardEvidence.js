@@ -1,14 +1,16 @@
 /**
  * standardEvidence.js
  *
- * Classifies a /biological_associations/basic row for the Standard view.
+ * Classifies a /biological_associations/basic row for the Field Assistant.
  *
- * Standard is the field view: it answers "where is it worth looking for this
- * beetle?", so by default it shows only confirmed evidence -- developmental
- * stages, rearings and wild feeding observations. Everything weaker stays
- * behind the "show uncertain records" switch: being `collected from` a plant
- * (amber) as well as the 2726 `[legacy] feeds on` rows that carry neither a
- * stage nor an organ (red). The switch widens the view to both at once.
+ * The Field Assistant answers "where is it worth looking for this beetle?", so
+ * it grades rather than filters: every associated taxon is listed, and each one
+ * carries the single best mark its records earn -- green for a developmental
+ * stage, a rearing or a wild feeding observation, amber for being `collected
+ * from` a plant, red for the rest, above all the `[legacy] feeds on` rows that
+ * name neither a stage nor an organ. Hiding the weaker ones behind a switch
+ * made an absent taxon and a poorly evidenced one look the same; one dot per
+ * taxon says which it is at a glance.
  *
  * Pure module: no Vue, no HTTP. The classification reads the SUBJECT side,
  * which biological-association data models as the animal on either page
@@ -59,8 +61,8 @@ export function classifyStandardRow(row) {
 // Stage, rearing and wild feeding share one mark: each of them ties the beetle
 // to that host directly, and the dot says how much a record is worth in the
 // field, not which rule admitted it. Being collected from a plant does not --
-// hence the separate weak mark, which is uncertain evidence and therefore
-// hidden with the excluded rows until the switch is on.
+// hence the separate weak mark, one step below it and one above everything
+// outside the criteria.
 const MARK_BY_CATEGORY = Object.freeze({
   stage: 'confirmed',
   'wild-feeding': 'confirmed',
@@ -75,16 +77,6 @@ export function standardMark(category) {
 
 export function standardRowMark(row) {
   return standardMark(classifyStandardRow(row))
-}
-
-/** Confirmed evidence only -- a `collected from` adult is uncertain and waits
- *  for the switch, together with everything outside the criteria. */
-export function isStandardVisible(row) {
-  return standardRowMark(row) === 'confirmed'
-}
-
-export function filterStandardRows(rows = [], showUncertainRecords = false) {
-  return showUncertainRecords ? [...rows] : rows.filter(isStandardVisible)
 }
 
 export function emptyStandardCounts() {
@@ -114,8 +106,8 @@ export const STANDARD_MARK_STYLES = Object.freeze([
   })
 ])
 
-/** All three slots, always, in a fixed order -- a row that only has red must
- *  not put its dot where its neighbour's green one sits. */
+/** All three categories in a fixed order, each with the row's count. The table
+ *  shows only the best of them; the breakdown behind the dot shows the rest. */
 export function standardRowMarks(row) {
   const counts = row?.counts || {}
   const total = Number(row?.count) || 0
@@ -125,16 +117,28 @@ export function standardRowMarks(row) {
   })
 }
 
-/** Only the categories the row actually has -- an empty slot reserves space in
- *  the table, but listing "0 of 11" in the breakdown is noise. */
+/**
+ * The single mark the Field Assistant paints for a row: the best category the
+ * row has any record in, green before amber before red. That order is
+ * STANDARD_MARK_STYLES' own, so the priority cannot drift from the legend.
+ * null for a row with nothing classified, which the table then leaves blank
+ * rather than inventing a colour for.
+ */
+export function standardBestMark(row) {
+  return standardRowMarks(row).find(mark => mark.count) || null
+}
+
+/** Only the categories the row actually has -- listing "0 of 11" in the
+ *  breakdown is noise. */
 export function standardRowMarkLines(row) {
   return standardRowMarks(row).filter(mark => mark.count)
 }
 
 /**
- * The whole breakdown as one string. It is the accessible name of the dot
- * group's button, so a screen-reader user hears every share without opening
- * the popover -- which on touch is the only way in at all.
+ * The whole breakdown as one string. It is the accessible name of the dot's
+ * button, so a screen-reader user hears every share -- not just the best one
+ * the dot paints -- without opening the popover, which on touch is the only
+ * way in at all.
  */
 export function standardMarksLabel(row) {
   const name = row?.name || 'this taxon'

@@ -13,12 +13,12 @@ function displayValue(value) {
   return /^(?:not available|not specified)$/i.test(text) ? '' : text
 }
 
+// A record without a readable AnatomicalPart names the plant, not an organ of
+// it. The Field Assistant leaves that cell blank: every one of its rows is a
+// plant already, so a symbol saying so told nobody anything. Raw data and
+// Advanced still spell the term out.
 function plantPart(participant) {
-  const part = displayValue(participant.part)
-  if (part) return part
-  if (participant.hasAnatomicalPart) return ''
-  // No AnatomicalPart means the record names the plant, not an organ of it.
-  return 'on plant'
+  return displayValue(participant.part)
 }
 
 /** Keep only the genus and species epithet used by the compact Standard view. */

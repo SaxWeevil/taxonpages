@@ -7,14 +7,6 @@ const ICON_ROOT = `${ASSET_BASE}images/biological-associations/`
 export const PLANT_ONTOLOGY_RELEASE = 'releases/2026-01-09'
 
 const ICONS = Object.freeze({
-  wholePlant: {
-    key: 'whole-plant',
-    // A record without an Object AnatomicalPart names the plant, not an organ.
-    // The PO term behind the icon stays "whole plant"; only the wording here
-    // says what the data actually asserts.
-    label: 'On plant',
-    src: `${ICON_ROOT}plant-part-whole-plant.png`
-  },
   leaf: {
     key: 'leaf',
     label: 'Leaf',
@@ -51,8 +43,6 @@ const ICONS = Object.freeze({
 // groups, not additional TaxonWorks fields and not inferred PO relationships.
 // Keeping the PO identity here makes each simplification auditable.
 const PART_MAPPING = Object.freeze({
-  'on plant': { poId: 'PO:0000003', icon: 'wholePlant' },
-
   leaf: { poId: 'PO:0025034', icon: 'leaf' },
   petiole: { poId: 'PO:0020038', icon: 'leaf' },
   'leaf axil': { poId: 'PO:0009023', icon: 'leaf', hint: 'axil' },
@@ -91,7 +81,7 @@ const PART_MAPPING = Object.freeze({
   }
 })
 
-const ICON_ORDER = ['wholePlant', 'leaf', 'flower', 'bud', 'stem', 'root', 'fruitSeed']
+const ICON_ORDER = ['leaf', 'flower', 'bud', 'stem', 'root', 'fruitSeed']
 const alphabetical = new Intl.Collator('en', { sensitivity: 'base', numeric: true }).compare
 
 function normalizePart(value) {

@@ -2,8 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   classifyStandardRow,
-  filterStandardRows,
-  isStandardVisible,
+  standardBestMark,
   standardMark,
   standardMarksLabel,
   standardRowMark,
@@ -87,7 +86,7 @@ test('marks group stage, rearing and wild feeding together', () => {
   assert.equal(standardMark('nonsense'), 'excluded')
 })
 
-test('filtering keeps the confirmed categories only, until the switch is on', () => {
+test('every category a record can land in keeps its own mark', () => {
   const rows = [
     row(stagePart('egg'), '[legacy] feeds on'),
     row(otu(), 'feeding observed in the wild on'),
@@ -95,13 +94,10 @@ test('filtering keeps the confirmed categories only, until the switch is on', ()
     row(otu(), 'reared from'),
     row(otu(), '[legacy] feeds on')
   ]
-  // `collected from` is uncertain evidence: hidden with the excluded row, not
-  // shown next to the confirmed ones.
-  assert.deepEqual(rows.map(isStandardVisible), [true, true, false, true, false])
-  assert.equal(filterStandardRows(rows).length, 3)
-  assert.equal(filterStandardRows(rows, true).length, 5)
-  // A copy, never the caller's array.
-  assert.notEqual(filterStandardRows(rows, true), rows)
+  // Nothing is filtered away any more: `collected from` is weaker evidence,
+  // not absent evidence, and the legacy row is weaker still.
+  assert.deepEqual(rows.map(standardRowMark),
+    ['confirmed', 'confirmed', 'weak', 'confirmed', 'excluded'])
 })
 
 test('a missing subject or relationship falls to other rather than throwing', () => {
@@ -128,7 +124,7 @@ test('the three mark styles keep their order and their theme tokens', () => {
   assert.throws(() => { STANDARD_MARK_STYLES.push({}) })
 })
 
-test('standardRowMarks keeps all three slots, standardRowMarkLines only what the row has', () => {
+test('standardRowMarks keeps all three categories, standardRowMarkLines only what the row has', () => {
   const marks = standardRowMarks(group({ confirmed: 8, weak: 3 }))
   assert.deepEqual(marks.map(mark => mark.count), [8, 3, 0])
   assert.equal(marks[0].title,
@@ -139,7 +135,25 @@ test('standardRowMarks keeps all three slots, standardRowMarkLines only what the
   assert.deepEqual(lines.map(mark => mark.key), ['confirmed', 'weak'])
 })
 
-test('a row with no counts still reserves every slot and reports zero of zero', () => {
+test('the best mark is the strongest category the row has, green before amber before red', () => {
+  // A mixed row reads as its best evidence: one green dot, not a worst-case
+  // verdict and not three dots to weigh up in the field.
+  assert.equal(standardBestMark(group({ confirmed: 8, weak: 3, excluded: 40 })).key, 'confirmed')
+  assert.equal(standardBestMark(group({ weak: 2, excluded: 9 })).key, 'weak')
+  assert.equal(standardBestMark(group({ excluded: 1 })).key, 'excluded')
+  // The colour comes from the same list the legend reads.
+  assert.equal(standardBestMark(group({ weak: 2 })).class, 'text-warning')
+  // And it carries that category's own count, not the row's total.
+  assert.equal(standardBestMark(group({ confirmed: 8, excluded: 40 })).count, 8)
+})
+
+test('a row with nothing classified gets no dot rather than an invented colour', () => {
+  assert.equal(standardBestMark(group({})), null)
+  assert.equal(standardBestMark({ name: 'X' }), null)
+  assert.equal(standardBestMark(undefined), null)
+})
+
+test('a row with no counts still reports every category as zero of zero', () => {
   const marks = standardRowMarks({ name: 'X' })
   assert.deepEqual(marks.map(mark => mark.count), [0, 0, 0])
   assert.match(marks[0].title, /^0 of 0 records: /)
@@ -151,7 +165,7 @@ test('the accessible name carries the whole breakdown, absent categories aside',
   assert.match(label, /^Evidence for Dianthus carthusianorum: /)
   assert.ok(label.includes('8 of 11 records: immature stage'))
   assert.ok(label.includes('3 of 11 records: adult collected from'))
-  // The empty red slot is visual alignment, not something to read out.
+  // A category the row has no record in is not something to read out.
   assert.ok(!label.includes('vague relationships'))
 })
 

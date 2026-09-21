@@ -60,16 +60,16 @@
                 :aria-label="'Show ' + row.count + ' records for ' + row.name + ' in Raw data'"
                 @click="$emit('show-records', row)"
               >{{ row.count }}</VButton>
-              <!-- Every category keeps its slot, so green, amber and red each
-                   read as their own column down the table. An absent one is
-                   hidden from sight. The dots carry no text, so table copying
-                   stays untouched.
+              <!-- One dot, the best a row earns: in the field the question is
+                   how good the strongest evidence for this plant is, not how
+                   the record pile splits. The dot carries no text, so table
+                   copying stays untouched.
 
-                   The group is one control, not three: a native title only ever
-                   showed on hover, so on a phone the breakdown was unreachable,
-                   and an 8px dot is far under the 24px a finger needs. The
-                   button's accessible name carries the whole breakdown, so the
-                   dots themselves are decorative. -->
+                   It is still a control, not decoration: a native title only
+                   ever showed on hover, so on a phone the breakdown was
+                   unreachable, and an 8px dot is far under the 24px a finger
+                   needs. The button's accessible name carries the whole
+                   breakdown, so the dot itself is decorative. -->
               <button
                 type="button"
                 class="standard-marks"
@@ -83,10 +83,9 @@
                 @keydown.escape.stop="closeMarks"
               >
                 <span
-                  v-for="mark in rowMarks(row)"
-                  :key="mark.key"
+                  v-if="bestMark(row)"
                   class="evidence-dot"
-                  :class="[mark.class, { 'evidence-dot-empty': !mark.count }]"
+                  :class="bestMark(row).class"
                   aria-hidden="true"
                 />
               </button>
@@ -136,9 +135,9 @@ import PlantPartIcons from './PlantPartIcons.vue'
 import PlantPartInfo from './PlantPartInfo.vue'
 import { uniquePlantParts } from './plantPartIcons.js'
 import {
+  standardBestMark,
   standardMarksLabel,
-  standardRowMarkLines,
-  standardRowMarks
+  standardRowMarkLines
 } from './standardEvidence.js'
 import { copyTableSelection } from './tableClipboard.js'
 import { useAnchoredPopover } from './useAnchoredPopover.js'
@@ -153,10 +152,11 @@ const copySelection = event => copyTableSelection(event, tableRoot.value)
 onMounted(() => document.addEventListener('copy', copySelection))
 onBeforeUnmount(() => document.removeEventListener('copy', copySelection))
 // Stage, rearing and wild feeding share the green dot: the mark says how much a
-// record is worth in the field, not which rule let it in. The wording itself
-// lives in standardEvidence.js, shared with the column heading's legend.
-function rowMarks(row) {
-  return standardRowMarks(row)
+// record is worth in the field, not which rule let it in. The wording and the
+// green-amber-red order both live in standardEvidence.js, shared with the
+// column heading's legend.
+function bestMark(row) {
+  return standardBestMark(row)
 }
 
 function rowMarkLines(row) {
@@ -205,9 +205,9 @@ function closeMarks() {
 const allRows = computed(() => props.sections.flatMap(section => section.rows))
 const visibleRows = computed(() => allRows.value)
 const visibleParts = computed(() => uniquePlantParts(visibleRows.value))
-// Resolve through the current rows, so a row that leaves the table (the
-// uncertain-records switch, a new page) takes its popover with it instead of
-// leaving it hanging off a row that is no longer there.
+// Resolve through the current rows, so a row that leaves the table (a new page,
+// a new taxon) takes its popover with it instead of leaving it hanging off a
+// row that is no longer there.
 const rowsByKey = computed(() => new Map(visibleRows.value.map(row => [row.key, row])))
 const activeRow = computed(() => activeRowKey.value == null
   ? null
@@ -221,9 +221,9 @@ const {
   position: marksPosition
 } = useAnchoredPopover(computed(() => !!activeRow.value), closeMarks, 'end')
 
-/** The dots keep their column because every row's count reserves the same
- *  width. Reserve only what the widest count in the table actually needs -- a
- *  fixed three digits throws away two digit widths on every row. */
+/** The dot keeps its column because every row's count reserves the same width.
+ *  Reserve only what the widest count in the table actually needs -- a fixed
+ *  three digits throws away two digit widths on every row. */
 const maxCountDigits = computed(() =>
   Math.max(1, ...visibleRows.value.map(row => String(Number(row.count) || 0).length)))
 const visibleSections = computed(() => props.sections.map(section => {
@@ -295,21 +295,22 @@ const visibleSections = computed(() => props.sections.map(section => {
   white-space: nowrap;
 }
 
-/* 0.75rem, not 0.5rem: the dots are their own tap target now and must not sit
-   a thumb-width from the count button, which drills into Raw data. */
+/* 0.75rem, not 0.5rem: the dot is its own tap target now and must not sit a
+   thumb-width from the count button, which drills into Raw data. */
 .standard-records-cell {
   display: inline-flex;
   align-items: center;
   gap: 0.75rem;
 }
 
-/* The visible disc row stays 36x8px; the button is 24px tall so the tap target
-   meets WCAG 2.5.8 (24x24 CSS px) on both axes -- 36px wide already does. The
-   count button beside it is 26px tall, so the row never grows for this. */
+/* The visible disc stays 8px; the button is 24px on both axes so the tap target
+   meets WCAG 2.5.8 (24x24 CSS px). The count button beside it is 26px tall, so
+   the row never grows for this. */
 .standard-marks {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
+  justify-content: center;
+  width: 1.5rem;
   height: 1.5rem;
   padding: 0;
   border: 0;
@@ -325,13 +326,13 @@ const visibleSections = computed(() => props.sections.map(section => {
 }
 
 /* The count reserves as many digits as the widest count in the table needs
-   (--standard-count-digits, set by the component), so the dot columns still do
+   (--standard-count-digits, set by the component), so the dot column still does
    not move between rows counting 1, 10 or 100 records -- without every row
    holding three digits free. .tp-button is content-box, so this min-width is
    the digit area alone; VButton size="xs" adds px-1.5 and a 1px border around
    it. tabular-nums makes every digit the same width; the 2px cover 1ch (the
    proportional zero) being a hair narrower than a tabular digit. Left aligned,
-   so the count and the dots read as one block flush with the column edge. */
+   so the count and the dot read as one block flush with the column edge. */
 .standard-association-table :deep(.standard-records-count) {
   min-width: calc(var(--standard-count-digits, 3) * 1ch + 2px);
   text-align: left;
@@ -339,7 +340,8 @@ const visibleSections = computed(() => props.sections.map(section => {
 }
 
 /* Colour comes from a theme token class (text-success/-warning/-danger), so the
-   dot and its glow re-tint with the theme in both light and dark mode. */
+   dot and its glow re-tint with the theme in both light and dark mode. The row
+   paints only its best category; the popover behind it holds the rest. */
 .evidence-dot {
   display: inline-block;
   width: 0.5rem;
@@ -347,11 +349,6 @@ const visibleSections = computed(() => props.sections.map(section => {
   border-radius: 9999px;
   background: currentColor;
   box-shadow: 0 0 0.3rem currentColor;
-}
-
-/* An absent category holds its place rather than closing the gap. */
-.evidence-dot-empty {
-  visibility: hidden;
 }
 
 </style>

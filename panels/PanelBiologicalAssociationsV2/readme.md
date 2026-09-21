@@ -16,98 +16,114 @@ Put this directory (PanelBiologicalAssociationsV2) into the panels folder on the
 - panel:biological-associations-v2
 ```
 
-## Standard, Advanced and Raw data views
+## Field Assistant, Advanced and Raw data views
 
-The panel opens in **Standard view** on every taxonomic rank. The buttons at the
-upper left select **Standard**, **Advanced**, and **Raw data**. Raw data preserves
-the original detailed table, family/genus summaries, citations, images and specimen modals.
+By default the panel opens in the **Field Assistant** on every taxonomic rank. The buttons at
+the upper left select **Field Assistant**, **Advanced**, and **Raw data**. Raw data
+preserves the original detailed table, family/genus summaries, citations, images
+and specimen modals.
 
-Standard view lists the **opposite side** of each association: a beetle page lists
-associated plants, and a plant page lists associated beetles. The current taxon
-is omitted from the table. If the page's taxon appears in both directions, the
-lists remain separate. Descendant taxa are included on genus/family/higher pages.
+The chosen view is remembered for the next taxon page and for a newly opened
+tab, the same way the Advanced column settings are: it is held in localStorage
+and validated by the shared browser-session cookie, so it is not scoped to one
+rank or target group, and it expires with the browser session. Someone
+comparing several taxa in Advanced therefore keeps Advanced. The view is
+restored on mount rather than in the initial state, because the server renders
+this panel too and has no storage to read; both renders start in the Field
+Assistant, and the restored view is in place before the first request. A
+Records drilldown into Raw data is a round trip with its own back button and
+does not overwrite the saved view; only the three buttons do. A stored view
+this panel no longer has falls back to the Field Assistant.
 
-- Standard is the **field view**: it answers where it is worth looking for this
-  beetle, so on its own it shows only **confirmed** records — those whose
-  **Subject** carries an immature stage (`egg`, `larvae`, `pupa`, `nidus`), or
-  whose Subject is an adult or carries no anatomical part and whose relationship
-  is `feeding observed in the wild on` or `reared from`. Rearing counts as
-  confirmed evidence because it shows the host carried the development, not just
-  the adult. Being `collected from` a plant shows neither, so it counts as
-  uncertain evidence and stays hidden together with everything outside the
-  criteria — above all the legacy feeding records that name neither a stage nor
-  an organ. Both appear together through the switch at the upper right, which
-  reads **Show uncertain records (N hidden)** while off and **Show certain
-  records only** while on, so the label always names what a click does. It holds
-  for the browser session. With the switch on, the added records appear marked
-  amber (`collected from`) and red (outside the criteria), and the taxa they
-  belong to join the table.
+> In code the first view is still called `standard`: `viewMode === 'standard'`,
+> `StandardAssociationsTable.vue`, `standardEvidence.js`. Only its label changed.
+
+The Field Assistant lists the **opposite side** of each association: a beetle page
+lists associated plants, and a plant page lists associated beetles. The current
+taxon is omitted from the table. If the page's taxon appears in both directions,
+the lists remain separate. Descendant taxa are included on genus/family/higher
+pages.
+
+- The Field Assistant answers where it is worth looking for this beetle, so it
+  **grades** its records rather than filtering them. A record counts as
+  **confirmed** (green) when its **Subject** carries an immature stage (`egg`,
+  `larvae`, `pupa`, `nidus`), or when the Subject is an adult or carries no
+  anatomical part and the relationship is `feeding observed in the wild on` or
+  `reared from`. Rearing counts as confirmed evidence because it shows the host
+  carried the development, not just the adult. Being `collected from` a plant
+  shows neither, so it is **weak** evidence (amber). Everything outside the
+  criteria is **red** — above all the legacy feeding records that name neither a
+  stage nor an organ. Nothing is hidden: an earlier version kept amber and red
+  behind a *Show uncertain records* switch, which made a plant with no records
+  and a plant with poor records look exactly alike. The switch is gone.
 - Each row aggregates the records of one associated taxon and can therefore mix
-  evidence. A row carries **one glowing dot per category** behind the Records
-  count, never a single worst-case verdict: green for a stage, a rearing or a
-  wild feeding observation, amber for `collected from`, red for a record outside
-  the criteria. Every category keeps its slot even when that row has none of it, and
-  the count sits left-aligned in a box as wide as the widest count in the table,
-  so the three colours read as their own columns down the table whether a row
-  counts 1, 10 or 100 records.
+  evidence. It carries **one glowing dot**, the **best** category it has any
+  record in: green before amber before red. In the field the question is how good
+  the strongest evidence for this plant is, not how the pile splits — that
+  breakdown is one tap away (below). The dot's priority order is
+  `STANDARD_MARK_STYLES` itself, so it cannot drift from the legend. The count
+  beside it sits left-aligned in a box as wide as the widest count in the table,
+  so the dots read as one column down the table whether a row counts 1, 10 or
+  100 records.
 - What green, amber and red **mean** is the same for every row, so it lives once
   in the **Records** column heading, behind the same ⓘ control the Anatomical
   parts heading uses — not repeated in each row. `EvidenceLegendInfo.vue` reads
   `STANDARD_MARK_STYLES` from `standardEvidence.js`, the very list the rows
   render from, so legend and table wording cannot drift apart.
-- How a **particular row** splits between the three is the row's own data, so it
-  stays at the row: the three dots together are **one control** — not three —
-  and opening it shows that row's breakdown (“Dianthus carthusianorum — 7
-  records”, then a line per category it actually has). Pointing devices get it
-  on hover as before; a tap or Enter opens it on a touch screen, where the
-  native `title` it replaced never appeared at all. Its accessible name carries
-  the whole breakdown (“Evidence for …: 3 of 13 records: adult collected
-  from”), so a screen reader needs no opening at all, and the dots themselves
-  are `aria-hidden` decoration. The visible discs stay 36×8 px, but the control
-  is 24 px tall and sits 0.75 rem from the count button, so the tap target meets
-  WCAG 2.5.8 on both axes without changing row height or the dot columns'
+- How a **particular row** splits between the categories is the row's own data,
+  so it stays at the row: the dot is a **control**, and opening it shows that
+  row's full breakdown (“Dianthus carthusianorum — 7 records”, then a line per
+  category it actually has). The simplification is in the picture, not in the
+  data. Pointing devices get it on hover; a tap or Enter opens it on a touch
+  screen, where the native `title` it replaced never appeared at all. Its
+  accessible name carries the whole breakdown (“Evidence for …: 3 of 13 records:
+  adult collected from”), so a screen reader needs no opening at all, and the dot
+  itself is `aria-hidden` decoration. The visible disc stays 8 px, but the
+  control is 24 px on both axes and sits 0.75 rem from the count button, so the
+  tap target meets WCAG 2.5.8 without changing row height or the dot column's
   alignment. One popover serves the whole table and its anchor moves to the
   active row, rather than one composable instance per row.
-- The dots carry no text, so copying the table is unaffected: the control holds
-  only empty spans, its breakdown is an `aria-label`, and only the heading's
-  ⓘ is marked `data-copy-ignore`. An empty Standard table distinguishes “No
-  records match the standard criteria.” from “No records found.”
+- The dot carries no text, so copying the table is unaffected: the control holds
+  only an empty span, its breakdown is an `aria-label`, and only the heading's
+  ⓘ is marked `data-copy-ignore`. An empty table reads “No records found.” —
+  with nothing filtered out, there is no second case to distinguish.
 - The four columns are **Anatomical parts**, **Family**, **Associated taxon** and
   a clickable **Records** count. The first column always describes the plant:
   it comes from the associated plant on a beetle page and from the current
-  plant on a plant page. Standard view maps the recorded terms to the curated
+  plant on a plant page. The Field Assistant maps the recorded terms to the curated
   Plant Ontology display groups leaf, flower, stem, root and the coupled
-  fruit/seed group. Bud and the whole-plant silhouette have their own icons. The information
+  fruit/seed group. Bud has its own icon. The information
   control in the column heading lists every unique underlying term in the
   currently displayed page and any required simplification note. Terms without
   a valid existing icon remain text instead of receiving a biologically
   incorrect image. Raw data view keeps every original term.
 - Associated taxa use the compact `Genus species` form. Subgenera, authors and
-  years are omitted in Standard view; Raw data view retains the complete labels.
+  years are omitted in Field Assistant; Raw data view retains the complete labels.
 - Rows combine OTU, FieldOccurrence and CollectionObject associations, including
   AnatomicalParts wrapping those entities. A direct OTU association is not needed.
 - Underlying OTUs are joined by their TaxonName ID, so different OTUs of the same
   taxon combine. Labels alone never merge potentially unrelated taxa.
-- Standard higher-rank pages collect both complete Basic-index directions before
+- Field Assistant higher-rank pages collect both complete Basic-index directions before
   rendering the table. This prevents provisional counts, repeated Vue table
   renders and background enrichment from slowing Firefox. OTU names and the
   required specimen details are resolved in bounded batches before the single
   final table update.
 - Associations stored under nomenclatural synonyms and combinations are included
-  through TaxonWorks' `coordinatify` OTU expansion. Standard view groups them under
+  through TaxonWorks' `coordinatify` OTU expansion. The Field Assistant groups them under
   `cached_valid_taxon_name_id`, displays the accepted name and links its accepted
   OTU page. Raw data view retains each association's originally recorded name.
 - An Object without an AnatomicalPart names the plant rather than an organ of
-  it. Standard and Advanced view therefore display it as **on plant**. The icon
-  behind it stays the whole-plant silhouette and keeps its `PO:0000003`
-  reference — the wording says what the record asserts, the PO id what the term
-  behind the picture is.
+  it. **Advanced view** displays that as **on plant**. The Field Assistant leaves
+  the cell blank instead: every one of its rows is about a plant already, so a
+  whole-plant silhouette repeated the column heading and told nobody anything.
+  The icon and its `PO:0000003` mapping were removed with it, and
+  `makeStandardParticipant()` no longer reports `hasAnatomicalPart`.
 - The rows of all three views read at `text-sm`, set on the cells in the panel's
   own style block. TaxonPages' `VTableBody` puts `text-xs` on the `tbody`, a step
   below the panels next to this one — Descendants and synonyms, Nomenclature and
   Type all render their content at `text-sm` — and reading down the page should
   not mean changing text size. Column headings keep the package's `text-xs`, the
-  size the Stats panel's headings read at. In Standard view the family heading
+  size the Stats panel's headings read at. In the Field Assistant the family heading
   and the direction heading both stay at the row size and separate themselves by
   weight and spacing.
 - Rows sort by family and associated taxon. Missing families sort last.
@@ -115,10 +131,9 @@ lists remain separate. Descendant taxa are included on genus/family/higher pages
 - Explicit `Not available` and `Not specified` anatomy and missing
   classification render as blank cells. Biological properties are not
   interpreted as anatomy.
-- The Standard table omits the Relationship column, and has no relationship
-  dropdown: the evidence rule above and its switch decide what it shows. With
-  the switch off every dot in the table is green, because only confirmed records
-  are counted at all. A
+- The Field Assistant table omits the Relationship column, and has no
+  relationship dropdown: the evidence rule above decides each row's colour, not
+  whether the row is there. A
   checkbox dropdown in **Raw data** lists every available relationship. Raw data applies
   the selected relationship IDs on the server before pagination. Relationships containing `legacy` or
   `undefined relationship` are initially disabled; informative relationships
@@ -128,29 +143,30 @@ lists remain separate. Descendant taxa are included on genus/family/higher pages
   restore the previous session may also restore session cookies after restart.
   Blocked storage falls back to choices within the current panel.
   “Reset to default” at the top of the dropdown restores this initial selection.
-  A Records drilldown out of Standard names its records by id and is therefore
-  **not** narrowed again by that dropdown — Raw data would otherwise show fewer
-  records than the count that was clicked.
+  A Records drilldown out of the Field Assistant names its records by id and is
+  therefore **not** narrowed again by that dropdown — Raw data would otherwise
+  show fewer records than the count that was clicked. The count is every record
+  of that taxon, whatever its colour, and the drilldown opens all of them.
   A separate, clickable ⓘ button explains the strength of the displayed
   evidence and links to the Biological relationships documentation. The filter
   itself has no hover hint.
-- Normal copy of a selection within one Standard table substitutes the original
+- Normal copy of a selection within one Field Assistant table substitutes the original
   plant-part terms, including unknown terms, when icons are selected:
   it copies the intersected cells in full as both a text table and an HTML table.
   Other text selections keep native browser behavior.
 - Clicking the record count opens those exact records in Raw data view; the back
-  button returns to Standard view.
+  button returns to the Field Assistant.
 
-For higher-rank Standard pages, two directional
+For higher-rank Field Assistant pages, two directional
 `/biological_associations/basic` requests (`subject_taxon_name_id[]` and
 `object_taxon_name_id[]`, both with `descendants=true`) are used in parallel.
-All server pages are collected locally and only then published to Standard.
+All server pages are collected locally and only then published to Field Assistant.
 There is no progressive table update and no automatic visible-row enrichment.
 `/otus?otu_id[]=...` with `extend[]=taxon_name` is requested only for the unique
-OTUs needed to define the final Standard groups, in bounded batches. The
+OTUs needed to define the final Field Assistant groups, in bounded batches. The
 complete, coordinatified Basic index remains available to Raw data where exact
 full-scope behavior is required. Raw data reads that index at the summary page
-size together with the same two directional requests Standard makes, all three in
+size together with the same two directional requests the Field Assistant makes, all three in
 one parallel round. The directional pair names which side of each association the
 taxon is on, and each is cheaper than the coordinatified query it runs beside
 (2.5 s and 1.3 s against 3.0 s on Entiminae), so the direction arrives with the
@@ -201,7 +217,7 @@ keep the base rows visible and are reported separately.
 If unnamed OTUs were excluded from the index, Raw data selects each page from
 the eligible index IDs before fetching full records (bounded by the page size).
 This prevents excluded rows from reappearing or leaving gaps in server pages.
-The Standard/Raw data buttons clear previous record-group selections. Changing
+The Field Assistant/Raw data buttons clear previous record-group selections. Changing
 relationships also re-evaluates the Raw data summary threshold. Header hints and
 the relationship dropdown are teleported outside the scrolling table and kept
 within the viewport; Escape and outside clicks dismiss them.
@@ -230,7 +246,7 @@ and both receive authorship when enabled, but only the accepted name is a link:
 the synonym's own OTU page carries its nomenclature and none of the records, so
 the link leads where the data is. Names without a synonym
 are displayed once. Cached synonym results
-from Standard are reused rather than overwritten when the second side is loaded.
+from the Field Assistant are reused rather than overwritten when the second side is loaded.
 Active name filters are translated when switching synonyms or authorship.
 
 - Each column cycles through ascending, descending and the original alphabetical
@@ -277,7 +293,7 @@ Active name filters are translated when switching synonyms or authorship.
   same field whenever a record has no citation of its own (783 of the 3000
   records in this project, e.g. "Yunakov N.N."), a specimen's `recordedBy` is the
   last fallback, and TaxonWorks also files photo credits as `Source::Verbatim`.
-  None of those opens anything, so none of them may look like a link; Standard
+  None of those opens anything, so none of them may look like a link; the Field Assistant
   has always rendered them this way. A source whose type could not be resolved
   keeps its link, because losing every reference to one failed lookup is the
   worse failure. The column filter and the clipboard still see the whole column,
@@ -321,7 +337,7 @@ the old panel used, with `otu_query[coordinatify]=true`, `otu_query[otu_id][]=..
 `per=3000`, so every record is in hand before anything is shown. Measured against
 the live API: 490 records (genus *Hypera*) are one request of 238 KB in 2.3 s;
 2882 (Curculionidae) are one request of 1.26 MB in 8 s; 3554 is the whole
-project. Standard already reads the same volume as the panel's opening view, so
+project. The Field Assistant already reads the same volume as the panel's opening view, so
 this is a cost the page was paying anyway, and it is paid once instead of once
 per page turn. `ADVANCED_MAX_ROWS` stops the collection at 10 000 records with a
 warning line rather than reading without end. Every index response is validated;
@@ -333,7 +349,7 @@ enrichments on the critical path:
 
 - **OTUs** (`loadOtusByIds`, three batches in flight), because only the OTU
   payload carries the accepted TaxonName the name columns display. Synonyms are
-  then resolved through the same `resolveAcceptedNames` helper Standard and Raw
+  then resolved through the same `resolveAcceptedNames` helper the Field Assistant and Raw
   data use, which costs one batched request and nothing at all without synonyms.
 - **Classification** (`loadAdvancedClassification`), which walks the parent chain
   level by level over `/taxon_names?taxon_name_id[]=…`, 100 ids per request,
@@ -341,7 +357,7 @@ enrichments on the critical path:
   genus OTU at once. Advanced no longer uses `loadTaxonomicFamilies`: that helper
   spends one `/taxon_names/:id?extend[]=ancestor_ids` request **per name**, which
   is fine for a 50-row page (~11 requests) and impossible for a whole taxon
-  (1061 names without a family on the project root). Standard and Raw data still
+  (1061 names without a family on the project root). The Field Assistant and Raw data still
   use it through `enrichAssociationFamilies`.
 
 `fillAssociationFamilies` still runs as a pure pass before publishing, because
@@ -366,9 +382,9 @@ a warning line and a Retry. Only a response that cannot be attributed to the
 requested page, or that carries a record without an id, still fails outright.
 
 On a species page Advanced keeps the current-OTU scope, so it can legitimately
-be empty even when Standard has descendant associations: the page's own OTU may
+be empty even when the Field Assistant has descendant associations: the page's own OTU may
 have no direct biological associations. Advanced reports that successful empty
-state separately from a failed request; use Standard or Raw data for the
+state separately from a failed request; use Field Assistant or Raw data for the
 higher-rank descendant scope.
 
 `advancedAssociations.js` contains pure row/filter/sort functions;
@@ -501,15 +517,23 @@ a publication is a reference with its full text, a `Source::Verbatim` credit and
 an index collector name are dimmed notes, and both remain selectable in the
 column filter. `standardAssociations.test.js` covers the bulk-load concurrency
 returning identical rows in identical order, abandoning a stale bulk load, and
-the row ceiling stopping with a labelled partial list. For the Records dots,
+the row ceiling stopping with a labelled partial list. For the Records dot,
 `standardEvidence.test.js` covers the frozen mark order and its theme tokens,
-all three slots surviving a row with no counts, the breakdown listing only the
-categories a row has, and the accessible name built from them;
-`standardTable.test.js` covers opening and closing one row, a second row moving
+the best mark being the strongest category a row has (and `null` for a row with
+nothing classified), all three categories surviving a row with no counts, the
+breakdown listing only the categories a row has, and the accessible name built
+from them; `standardTable.test.js` covers the one dot a row paints for each
+evidence mix, opening and closing one row, a second row moving
 the single popover rather than adding one, `closeMarks` clearing the click and
 hover flags together, hover being ignored without a hovering pointer (otherwise
 a tap leaves the popover stuck open), and a row leaving the table taking its
-popover with it.
+popover with it. `viewModePreference.test.js` covers the saved view: the three
+views keeping their labels and their order, a choice read back by the next page
+and the next tab, the preference dying with the browser session, a stored view
+the panel no longer has falling back to the Field Assistant (and an unknown one
+never being written), and blocked storage leaving the default in place instead
+of throwing. The panel-level suite adds the restore itself and a Records
+drilldown into Raw data leaving the saved view alone.
 
 Each of these was checked once against the defect it exists for, by
 reintroducing that defect in a throwaway copy under `panels/.redcheck/` — never
@@ -519,7 +543,7 @@ served module on 2026-09-16.
 Regression cases cover FO-only associations, multiple OTUs of one taxon,
 wrapped parts, colliding CO/FO IDs, both directions, higher ranks, alphabetical
 ordering, complete server pagination and stale requests. Component-setup tests
-also cover Standard/Raw data transitions, filter threshold changes, and metadata
+also cover Field Assistant/Raw data transitions, filter threshold changes, and metadata
 pagination using a fake HTTP client. OTUs without TaxonNames and placeholder
 families have dedicated regression cases.
 
@@ -544,7 +568,7 @@ menus were checked at 390 px in dark and light themes. The three-click sort cycl
 restores the exact original order and neutral button. Depictions/Area default to
 hidden; one Data attribute option toggles both columns. Citation short labels
 and the individual Reference modal match Raw data (Skuhrovec, 2005b:228); citation
-filters and Standard's separate legacy/undefined defaults were also checked.
+filters and Field Assistant's separate legacy/undefined defaults were also checked.
 The production build is also required; if the local read-only `node_modules`
 environment prevents it from writing its generated source asset, that
 environmental limitation is reported separately from source/test failures.

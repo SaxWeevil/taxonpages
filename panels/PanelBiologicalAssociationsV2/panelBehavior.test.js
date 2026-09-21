@@ -5,6 +5,7 @@ import { compileScript, parse } from '@vue/compiler-sfc'
 import * as vue from 'vue'
 import { popoverPosition } from './useAnchoredPopover.js'
 import { STANDARD_SUMMARY_PAGE_SIZE } from './loadStandardAssociations.js'
+import { standardBestMark } from './standardEvidence.js'
 
 // Execute the actual Vue setup with a fake HTTP boundary. This covers view
 // transitions and their async requests, which pure row-helper tests cannot.
@@ -480,13 +481,19 @@ test('Advanced taxonomy enrichment is limited to explicitly requested current-pa
 
 test('a slow Advanced OTU response cannot activate Advanced after returning to Standard', async t => {
   let resolve
-  const state = await createPanel(t, { get: () => new Promise(done => { resolve = done }) })
+  // Only Advanced's own request hangs. Everything the return to Standard asks
+  // for answers at once, the way a working index does.
+  let slow = true
+  const state = await createPanel(t, { get: () => slow
+    ? new Promise(done => { resolve = done })
+    : Promise.resolve(emptyResponse()) })
   state.summaryLoaded.value = true
   state.standardReady.value = true
   state.summaryAsSubjectRows.value = [{ id: 1, subject_otu_id: 11, object_otu_id: 22,
     subject: { type: 'Otu', id: 11 }, object: { type: 'Otu', id: 22 } }]
   const pending = state.setViewMode('advanced')
   await vue.nextTick()
+  slow = false
   await state.setViewMode('standard')
   resolve(emptyResponse())
   await pending
@@ -754,7 +761,7 @@ test('header popovers stay within narrow viewports and flip above near the botto
   }
 })
 
-test('Standard shows only confirmed rows until the switch widens it', async t => {
+test('the Field Assistant lists every taxon and grades it instead of filtering', async t => {
   // One row per category: a larva (stage), an adult collected from a plant
   // (weak), and a legacy record with neither stage nor organ (excluded).
   const basic = [
@@ -784,23 +791,10 @@ test('Standard shows only confirmed rows until the switch widens it', async t =>
 
   await state.loadStandardView()
   assert.equal(state.loadError.value, '')
-  assert.equal(state.showUncertainRecords.value, false)
-  // The `collected from` row is uncertain evidence: it waits for the switch
-  // together with the legacy one, and its taxon is not listed meanwhile.
-  assert.deepEqual(state.standardSubjectRows.value.map(row => row.id), [1])
-  assert.equal(state.hiddenStandardCount.value, 2)
-  assert.equal(state.headerCount.value, 1)
-  assert.match(state.uncertainRecordsLabel.value, /\(2 hidden\)/)
-  assert.deepEqual(
-    state.standardAsSubject.value.map(group => group.counts),
-    [{ confirmed: 1, weak: 0, excluded: 0 }]
-  )
-
-  state.setShowUncertainRecords(true)
-  assert.deepEqual(state.standardSubjectRows.value.map(row => row.id), [1, 2, 3])
+  // All three taxa are listed at once: weaker evidence is a paler dot, not a
+  // hidden row, so an absent plant and a poorly evidenced one cannot look the
+  // same. The header counts the whole index with them.
   assert.equal(state.headerCount.value, 3)
-  assert.equal(state.uncertainRecordsLabel.value, 'Show certain records only')
-  // Amber and red appear together, each on the taxon the switch brought in.
   assert.deepEqual(
     state.standardAsSubject.value.map(group => group.counts),
     [
@@ -809,9 +803,14 @@ test('Standard shows only confirmed rows until the switch widens it', async t =>
       { confirmed: 0, weak: 0, excluded: 1 }
     ]
   )
-  // The relationship dropdown no longer speaks for Standard.
+  // Each one paints the single dot its own evidence earns.
+  assert.deepEqual(
+    state.standardAsSubject.value.map(group => standardBestMark(group).class),
+    ['text-success', 'text-warning', 'text-danger']
+  )
+  // The relationship dropdown does not speak for the Field Assistant either.
   state.selectedRelationships.value = []
-  assert.equal(state.standardSubjectRows.value.length, 3)
+  assert.equal(state.standardAsSubject.value.length, 3)
 })
 
 test('a Records drilldown out of Standard is not narrowed again by the relationship filter', async t => {
@@ -836,12 +835,97 @@ test('a Records drilldown out of Standard is not narrowed again by the relations
   assert.equal(calls.some(url => url.startsWith('/biological_relationships')), false)
 })
 
-test('an empty Standard says whether records were filtered out or are absent', async t => {
+test('a legacy-only record still gives the Field Assistant a row to show', async t => {
+  // It used to be filtered away, which left the table claiming "no records"
+  // for a taxon the index does hold something about.
   const state = await createPanel(t, { get: async () => emptyResponse() })
-  assert.equal(state.standardEmptyMessage.value, 'No records found.')
+  state.standardReady.value = true
+  assert.deepEqual(state.standardAsSubject.value, [])
   state.summaryAsSubjectRows.value = [
     { id: 5, relationship: '[legacy] feeds on',
       subject: { type: 'Otu', id: 11 }, object: { type: 'Otu', id: 21 } }
   ]
-  assert.equal(state.standardEmptyMessage.value, 'No records match the standard criteria.')
+  assert.equal(state.standardAsSubject.value.length, 1)
+  assert.equal(standardBestMark(state.standardAsSubject.value[0]).class, 'text-danger')
+})
+
+// The saved view. restoreViewMode() runs from onMounted, which createPanel
+// stubs out, so it is called here the way the mount calls it -- against the
+// real globals, which is why they are faked for the duration of the test.
+function withBrowserStorage(t) {
+  const values = new Map()
+  // node supplies globalThis.crypto itself, and it is read-only there.
+  const saved = Object.fromEntries(['document', 'localStorage']
+    .map(name => [name, globalThis[name]]))
+  globalThis.document = { cookie: '' }
+  globalThis.localStorage = { getItem: key => values.get(key), setItem: (key, value) => values.set(key, value) }
+  t.after(() => {
+    for (const [name, value] of Object.entries(saved)) {
+      if (value === undefined) delete globalThis[name]
+      else globalThis[name] = value
+    }
+  })
+}
+
+test('the chosen view is restored on the next page and in the next tab', async t => {
+  withBrowserStorage(t)
+  const first = await createPanel(t, { get: async () => emptyResponse() })
+  first.summaryLoaded.value = true
+  first.standardReady.value = true
+  await first.setViewMode('advanced')
+
+  // A second panel instance is what a new tab, or the next taxon page, mounts.
+  const next = await createPanel(t, { get: async () => emptyResponse() })
+  assert.equal(next.viewMode.value, 'standard')
+  next.restoreViewMode()
+  assert.equal(next.viewMode.value, 'advanced')
+})
+
+test('a Records drilldown opens Raw data without making it the saved view', async t => {
+  withBrowserStorage(t)
+  const state = await createPanel(t, { get: async () => emptyResponse() })
+  state.standardReady.value = true
+  await state.setViewMode('advanced')
+  await state.setViewMode('standard')
+  state.summaryAsSubjectRows.value = [
+    { id: 41, relationship: 'collected from',
+      subject: { type: 'Otu', id: 11 }, object: { type: 'Otu', id: 21 } }
+  ]
+  await state.showStandardRecords({ key: 'taxon:210', name: 'Plant one', ids: [41], count: 1 })
+  assert.equal(state.viewMode.value, 'expert')
+
+  const next = await createPanel(t, { get: async () => emptyResponse() })
+  next.restoreViewMode()
+  assert.equal(next.viewMode.value, 'standard')
+})
+
+test('the Field Assistant still has its rows after a visit to Raw data', async t => {
+  // Raw data fills the summary refs and marks them loaded; the Field Assistant
+  // reads that same cache. It used to empty the refs on the way in, so the
+  // cache handed it nothing back and the table claimed "No records found."
+  const basic = [
+    { id: 1, relationship: 'collected from',
+      subject: { type: 'Otu', id: 11, label: 'Beetle one', family: 'Curculionidae' },
+      object: { type: 'Otu', id: 21, label: 'Plant one', family: 'Betulaceae' } }
+  ]
+  const response = data => ({ data, headers: { 'pagination-page': '1',
+    'pagination-per-page': '50', 'pagination-total': String(data.length) } })
+  const state = await createPanel(t, { get: async (url, config = {}) => {
+    const [path, query] = url.split('?')
+    const params = new URLSearchParams(query)
+    if (path === '/otus') return response(params.getAll('otu_id[]').map(id => ({ id: Number(id),
+      taxon_name_id: Number(id) * 10,
+      taxon_name: { id: Number(id) * 10, cached: `Taxon ${id}`, rank: 'species' } })))
+    if (path === '/biological_associations/basic') {
+      return response(config.params?.['object_taxon_name_id[]'] ? [] : basic)
+    }
+    return response([])
+  } })
+
+  await state.setViewMode('expert')
+  assert.equal(state.summaryLoaded.value, true)
+  await state.setViewMode('standard')
+  assert.equal(state.standardLoadState.value, 'ready')
+  assert.equal(state.standardAsSubject.value.length, 1)
+  assert.equal(state.headerCount.value, 1)
 })
