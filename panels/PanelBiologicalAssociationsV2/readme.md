@@ -47,13 +47,18 @@ pages.
 - The Field Assistant answers where it is worth looking for this beetle, so it
   **grades** its records rather than filtering them. A record counts as
   **confirmed** (green) when its **Subject** carries an immature stage (`egg`,
-  `larvae`, `pupa`, `nidus`), or when the Subject is an adult or carries no
-  anatomical part and the relationship is `feeding observed in the wild on`,
-  `reared from` or `reared from galls on`. Rearing counts as confirmed evidence
-  because it shows the host carried the development, not just the adult; a gall
-  rearing is a relationship of its own in TaxonWorks and is listed beside it
-  rather than matched by prefix. Being `collected from` a plant
-  shows neither, so it is **weak** evidence (amber). Everything outside the
+  `larvae`, `pupa`, `nidus`), when the relationship is `reared from` or
+  `reared from galls on`, or when the Subject is an adult or carries no
+  anatomical part and the relationship is `feeding observed in the wild on`.
+  Rearing counts as confirmed evidence because it shows the host carried the
+  development, not just the adult; a gall rearing is a relationship of its own
+  in TaxonWorks and is listed beside it rather than matched by prefix. It is
+  also the one green rule that ignores the Subject's anatomical part — the
+  relationship already carries the evidence, and gating it would hang the colour
+  on a spelling (the project's gall rearings are filed under `larva`, in the
+  singular, which is not one of the stage terms). A feeding observation stays
+  gated, because it describes the individual that was watched. Being
+  `collected from` a plant shows neither, so it is **weak** evidence (amber). Everything outside the
   criteria is **red** — above all the legacy feeding records that name neither a
   stage nor an organ. Nothing is hidden: an earlier version kept amber and red
   behind a *Show uncertain records* switch, which made a plant with no records

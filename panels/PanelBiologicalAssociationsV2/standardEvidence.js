@@ -49,18 +49,25 @@ export function subjectStage(row) {
 
 /**
  * 'stage'          egg/larvae/pupa/nidus, whatever the relationship says
+ * 'reared'         reared from / reared from galls on, whatever the part says
  * 'wild-feeding'   adult or no part + feeding observed in the wild on
- * 'reared'         adult or no part + reared from / reared from galls on
  * 'collected-from' adult or no part + collected from (weak evidence)
  * 'other'          everything else
  */
 export function classifyStandardRow(row) {
   const stage = subjectStage(row)
+  const relationship = row?.relationship?.trim?.() || ''
   if (STAGE_PARTS.includes(stage)) return 'stage'
+  // A rearing needs no part gate: the relationship itself says the host
+  // carried the development, so which part the reared specimen was filed
+  // under adds nothing. Gating it would hang the colour on a spelling -- the
+  // project's own gall rearings are recorded as `larva`, in the singular,
+  // which is in neither list. A feeding observation is gated because it
+  // describes the individual that was watched, so what that individual was
+  // does decide what the record shows.
+  if (REARED_FROM_RELATIONSHIPS.includes(relationship)) return 'reared'
   if (ADULT_PARTS.includes(stage)) {
-    const relationship = row?.relationship?.trim?.() || ''
     if (relationship === WILD_FEEDING_RELATIONSHIP) return 'wild-feeding'
-    if (REARED_FROM_RELATIONSHIPS.includes(relationship)) return 'reared'
     if (relationship === COLLECTED_FROM_RELATIONSHIP) return 'collected-from'
   }
   return 'other'
@@ -100,7 +107,7 @@ export const STANDARD_MARK_STYLES = Object.freeze([
   Object.freeze({
     key: 'confirmed',
     class: 'text-success',
-    reason: 'immature stage, or adult reared from (including galls) or feeding observed in the wild'
+    reason: 'immature stage, reared from (including galls), or adult feeding observed in the wild'
   }),
   Object.freeze({
     key: 'weak',
