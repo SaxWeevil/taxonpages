@@ -49,6 +49,11 @@ test('an adult or partless subject needs the relationship to qualify', () => {
     // Rearing proves the host carried the development -- stronger than a find
     // on the plant, which is already visible as weak evidence.
     assert.equal(classifyStandardRow(row(subject, 'reared from')), 'reared')
+    // A gall rearing is a relationship of its own, and counts the same.
+    assert.equal(classifyStandardRow(row(subject, 'reared from galls on')), 'reared')
+    // Matched whole, not by prefix: a name that only starts like one of them
+    // is a different relationship and must not inherit its colour.
+    assert.equal(classifyStandardRow(row(subject, 'reared from galls')), 'other')
     assert.equal(classifyStandardRow(row(subject, 'feeding observed in experimental setup on')), 'other')
     assert.equal(classifyStandardRow(row(subject, '[legacy] feeds on')), 'other')
     assert.equal(classifyStandardRow(row(subject, 'undefined relationship with')), 'other')
@@ -128,7 +133,7 @@ test('standardRowMarks keeps all three categories, standardRowMarkLines only wha
   const marks = standardRowMarks(group({ confirmed: 8, weak: 3 }))
   assert.deepEqual(marks.map(mark => mark.count), [8, 3, 0])
   assert.equal(marks[0].title,
-    '8 of 11 records: immature stage, or adult reared from or feeding observed in the wild')
+    '8 of 11 records: immature stage, or adult reared from (including galls) or feeding observed in the wild')
   assert.equal(marks[1].title, '3 of 11 records: adult collected from')
 
   const lines = standardRowMarkLines(group({ confirmed: 8, weak: 3 }))

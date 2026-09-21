@@ -48,9 +48,11 @@ pages.
   **grades** its records rather than filtering them. A record counts as
   **confirmed** (green) when its **Subject** carries an immature stage (`egg`,
   `larvae`, `pupa`, `nidus`), or when the Subject is an adult or carries no
-  anatomical part and the relationship is `feeding observed in the wild on` or
-  `reared from`. Rearing counts as confirmed evidence because it shows the host
-  carried the development, not just the adult. Being `collected from` a plant
+  anatomical part and the relationship is `feeding observed in the wild on`,
+  `reared from` or `reared from galls on`. Rearing counts as confirmed evidence
+  because it shows the host carried the development, not just the adult; a gall
+  rearing is a relationship of its own in TaxonWorks and is listed beside it
+  rather than matched by prefix. Being `collected from` a plant
   shows neither, so it is **weak** evidence (amber). Everything outside the
   criteria is **red** — above all the legacy feeding records that name neither a
   stage nor an organ. Nothing is hidden: an earlier version kept amber and red

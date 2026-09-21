@@ -54,7 +54,7 @@ test('the dot carries its own category count, and its title the whole share', as
   const state = await createTable(t)
   const mark = state.bestMark(group({ confirmed: 8, weak: 3 }))
   assert.equal(mark.count, 8)
-  assert.equal(mark.title, '8 of 11 records: immature stage, or adult reared from or feeding observed in the wild')
+  assert.equal(mark.title, '8 of 11 records: immature stage, or adult reared from (including galls) or feeding observed in the wild')
 })
 
 test('a row without counts gets no dot rather than an invented colour', async t => {
