@@ -231,7 +231,6 @@ export function makeStandardParticipant(row, side, otuById = new Map(), dwcBySpe
     unlinked,
     italic: !unlinked && !!scientificName && (!taxon?.rank || /^(subgenus|genus|species|subspecies|variety|form)$/.test(taxon.rank)),
     family: displayFamily(entity.family) || displayFamily(dwc?.family) || null,
-    part,
-    hasAnatomicalPart: entityType === 'AnatomicalPart'
+    part
   }
 }

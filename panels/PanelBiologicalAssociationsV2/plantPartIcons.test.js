@@ -22,26 +22,35 @@ test('maps the inventoried plant terms to curated PO icon groups', () => {
   assert.equal(PLANT_ONTOLOGY_RELEASE, 'releases/2026-01-09')
 })
 
-test('maps the whole-plant icon and both bud terms to their own icons', () => {
-  const display = plantPartDisplay(['on plant', 'bud', 'flower bud'])
+test('maps both bud terms to the one bud icon', () => {
+  const display = plantPartDisplay(['bud', 'flower bud'])
 
-  assert.deepEqual(display.icons.map(icon => icon.key), ['whole-plant', 'bud'])
-  assert.deepEqual(display.icons[0].poIds, ['PO:0000003'])
-  assert.deepEqual(display.icons[1].poIds, ['PO:0000055', 'PO:0000056'])
+  assert.deepEqual(display.icons.map(icon => icon.key), ['bud'])
+  assert.deepEqual(display.icons[0].poIds, ['PO:0000055', 'PO:0000056'])
   assert.deepEqual(display.fallback, [])
   for (const icon of display.icons) {
     assert.equal(existsSync(new URL(`../../public${icon.src}`, import.meta.url)), true)
   }
 })
 
+test('"on plant" no longer earns a symbol of its own', () => {
+  // Every row of this table is about a plant, so a whole-plant silhouette said
+  // nothing. The grouping stopped producing the term; should one reach here
+  // anyway it stays text rather than picking up a wrong organ's picture.
+  const display = plantPartDisplay(['on plant'])
+
+  assert.deepEqual(display.icons, [])
+  assert.deepEqual(display.fallback, ['on plant'])
+})
+
 test('collects unique terms from only the currently supplied rows', () => {
   const rows = [
     { parts: ['leaf', 'bud', 'leaf'] },
-    { parts: [' on plant ', 'bud'] },
+    { parts: [' stem base ', 'bud'] },
     { parts: [] }
   ]
 
-  assert.deepEqual(uniquePlantParts(rows), ['bud', 'leaf', 'on plant'])
+  assert.deepEqual(uniquePlantParts(rows), ['bud', 'leaf', 'stem base'])
   assert.deepEqual(uniquePlantParts(rows.slice(0, 1)), ['bud', 'leaf'])
 })
 
@@ -54,11 +63,11 @@ test('combines fruit and seed into the confirmed shared project icon', () => {
 })
 
 test('keeps original terms and unmapped parts available as text', () => {
-  const display = plantPartDisplay(['leaf', 'bud', 'on plant', 'unknown tissue'])
+  const display = plantPartDisplay(['leaf', 'bud', 'unknown tissue'])
 
-  assert.deepEqual(display.icons.map(icon => icon.key), ['whole-plant', 'leaf', 'bud'])
+  assert.deepEqual(display.icons.map(icon => icon.key), ['leaf', 'bud'])
   assert.deepEqual(display.fallback, ['unknown tissue'])
-  assert.deepEqual(display.originals, ['bud', 'leaf', 'on plant', 'unknown tissue'])
+  assert.deepEqual(display.originals, ['bud', 'leaf', 'unknown tissue'])
 })
 
 test('explains the intentional rhizome simplification', () => {

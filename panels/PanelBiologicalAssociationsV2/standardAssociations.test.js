@@ -52,7 +52,8 @@ test('standard view combines repeated species and sorts unique plant parts', () 
   assert.equal(group.name, 'Dianthus carthusianorum')
   assert.equal(group.otuId, 1383723)
   assert.deepEqual(group.families, ['Caryophyllaceae'])
-  assert.deepEqual(group.parts, ['leaf', 'on plant', 'plant ovary'])
+  // Row 4 names no organ, so it contributes no term at all.
+  assert.deepEqual(group.parts, ['leaf', 'plant ovary'])
   assert.equal(group.count, 4)
 })
 
@@ -92,12 +93,14 @@ test('plant pages show their plant parts before the compact associated beetle na
   assert.deepEqual(group.families, ['Curculionidae'])
 })
 
-test('a plant without an anatomical part is displayed as on plant in either direction', () => {
+test('a plant without an anatomical part carries no part in either direction', () => {
+  // Every row of the Field Assistant is about a plant, so "on plant" told
+  // nobody anything; the cell stays empty instead. Raw data keeps the term.
   const subjectPage = groupStandardAssociations([row(1)], 'subject', otuById)
   const objectPage = groupStandardAssociations([row(1)], 'object', otuById)
 
-  assert.deepEqual(subjectPage[0].parts, ['on plant'])
-  assert.deepEqual(objectPage[0].parts, ['on plant'])
+  assert.deepEqual(subjectPage[0].parts, [])
+  assert.deepEqual(objectPage[0].parts, [])
 })
 
 test('standard names omit subgenus, authorship and year', () => {
@@ -130,7 +133,7 @@ test('different OTUs of the same TaxonName combine even across CO, FO and anatom
   ]
   const [group] = groupStandardAssociations(records, 'object', otuById)
   assert.equal(group.count, 3)
-  assert.deepEqual(group.parts, ['on plant'])
+  assert.deepEqual(group.parts, [])
 })
 
 test('family is shared between anatomical records of the same taxon', () => {

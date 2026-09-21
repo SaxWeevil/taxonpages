@@ -20,32 +20,20 @@
           class="inline-flex items-center gap-1"
         >
           <VButton
-            v-for="mode in ['standard', 'advanced', 'expert']"
+            v-for="mode in VIEW_MODES"
             :key="mode"
             size="sm"
             variant="secondary"
             :ghost="viewMode !== mode"
             :aria-pressed="viewMode === mode"
             @click="setViewMode(mode)"
-          >{{ { standard: 'Standard', advanced: 'Advanced', expert: 'Raw data' }[mode] }}</VButton>
+          >{{ VIEW_MODE_LABELS[mode] }}</VButton>
         </div>
         <div v-show="viewMode === 'advanced'" ref="advancedRowsToolbar" class="flex justify-center" />
         <div
           ref="advancedToolbar"
           class="flex w-full flex-wrap items-center justify-start gap-3 sm:ml-auto sm:w-auto sm:justify-end"
         >
-          <!-- Standard is a curated evidence view; this switch, not a
-               relationship dropdown, is what widens it. It is the package's
-               own VToggle at the same size the Advanced toolbar teleports into
-               this very row, so the two switches beside each other are one
-               control, not two lookalikes. -->
-          <VToggle
-            v-if="viewMode === 'standard' && standardReady"
-            size="sm"
-            data-testid="biological-associations-uncertain-records"
-            :model-value="showUncertainRecords"
-            @update:model-value="setShowUncertainRecords"
-          >{{ uncertainRecordsLabel }}</VToggle>
           <RelationshipFilter
             v-if="viewMode === 'expert' && relationshipOptions.length"
             :model-value="selectedRelationships"
@@ -127,7 +115,7 @@
         <div
           v-if="standardLoadState === 'ready' && !loadError && !standardAsSubject.length && !standardAsObject.length"
           class="text-xl text-center my-8 w-full"
-        >{{ standardEmptyMessage }}</div>
+        >No records found.</div>
       </template>
 
       <!-- Summary: higher-rank pages (genus and above), before drilling into a group.
@@ -215,7 +203,7 @@
         v-if="selectedGroup"
         class="mb-4 text-sm text-secondary hover:underline cursor-pointer"
         @click="clearGroupSelection"
-      >&larr; {{ selectedGroup.fromStandard ? 'Back to Standard view' : 'Back to summary' }} ({{ selectedGroup.key }})</button>
+      >&larr; {{ selectedGroup.fromStandard ? 'Back to Field Assistant' : 'Back to summary' }} ({{ selectedGroup.key }})</button>
 
       <VPagination
         v-if="biologicalAssociations.length"
@@ -442,7 +430,8 @@ import {
   SPECIES_AND_INFRASPECIES_GROUP
 } from '@/modules/otus/constants'
 import StandardAssociationsTable from './StandardAssociationsTable.vue'
-import { advancedScope, readBrowserSession, writeBrowserSession } from './browserSessionStorage.js'
+import { advancedScope } from './browserSessionStorage.js'
+import { VIEW_MODES, VIEW_MODE_LABELS, readViewMode, writeViewMode } from './viewModePreference.js'
 import { copyTableSelection } from './tableClipboard.js'
 import RelationshipFilter from './RelationshipFilter.vue'
 import {
@@ -469,7 +458,6 @@ import {
   STANDARD_SUMMARY_PAGE_SIZE
 } from './loadStandardAssociations.js'
 import { loadAdvancedClassification } from './loadAdvancedAssociations.js'
-import { filterStandardRows, isStandardVisible } from './standardEvidence.js'
 import {
   indexRelationshipIds,
   readSessionRelationshipPreferences,
@@ -603,10 +591,6 @@ const advancedCount = ref(0)
 const standardTaxa = ref({ otuById: new Map(), dwcBySpecimen: new Map() })
 const loadError = ref('')
 const selectedRelationships = ref([])
-// The switch belongs to the browser session, not to the taxon page: someone
-// who widened Standard keeps it widened while browsing from taxon to taxon.
-const STANDARD_UNCERTAIN_RECORDS_KEY = 'taxonpages:standard-uncertain-records'
-const showUncertainRecords = ref(readBrowserSession(STANDARD_UNCERTAIN_RECORDS_KEY)?.uncertain === true)
 const relationshipPreferences = ref({})
 const relationshipIdsByName = ref(new Map())
 const relationshipIdsLoaded = ref(false)
@@ -625,35 +609,15 @@ const filteredStandardObjectRows = computed(() =>
   filterRowsByRelationships(summaryAsObjectRows.value, selectedRelationships.value)
 )
 
-// Standard no longer follows the relationship dropdown -- that belongs to Raw
-// data. It applies the evidence rule instead: on its own it shows the confirmed
-// records alone, and the switch widens it to the complete index, where the
-// amber and red dots say what the added rows are worth.
-const standardSubjectRows = computed(() =>
-  filterStandardRows(summaryAsSubjectRows.value, showUncertainRecords.value))
-const standardObjectRows = computed(() =>
-  filterStandardRows(summaryAsObjectRows.value, showUncertainRecords.value))
-// Everything the evidence rule holds back: the weak `collected from` records
-// as well as the ones outside the criteria.
-const hiddenStandardCount = computed(() =>
-  allAssociationRows.value.filter(row => !isStandardVisible(row)).length)
-// Both states name what a click does, so the label itself changes rather than
-// just losing its count.
-const uncertainRecordsLabel = computed(() => {
-  if (showUncertainRecords.value) return 'Show certain records only'
-  return hiddenStandardCount.value
-    ? `Show uncertain records (${hiddenStandardCount.value} hidden)`
-    : 'Show uncertain records'
-})
-const standardEmptyMessage = computed(() => hiddenStandardCount.value
-  ? 'No records match the standard criteria.'
-  : 'No records found.')
-
+// The Field Assistant follows neither the relationship dropdown -- that belongs
+// to Raw data -- nor a filter of its own. It lists every associated taxon the
+// index holds and grades each one instead: the evidence rule decides the colour
+// of the row's dot, not whether the row is there at all.
 const standardAsSubject = computed(() => standardReady.value
-  ? groupStandardAssociations(standardSubjectRows.value, 'subject', standardTaxa.value.otuById, standardTaxa.value.dwcBySpecimen, summaryAsSubjectRows.value)
+  ? groupStandardAssociations(summaryAsSubjectRows.value, 'subject', standardTaxa.value.otuById, standardTaxa.value.dwcBySpecimen)
   : [])
 const standardAsObject = computed(() => standardReady.value
-  ? groupStandardAssociations(standardObjectRows.value, 'object', standardTaxa.value.otuById, standardTaxa.value.dwcBySpecimen, summaryAsObjectRows.value)
+  ? groupStandardAssociations(summaryAsObjectRows.value, 'object', standardTaxa.value.otuById, standardTaxa.value.dwcBySpecimen)
   : [])
 const groupBy = ref('family') // 'family' | 'genus'
 const selectedGroup = ref(null) // { key, count, ids } while drilled into one group
@@ -679,9 +643,10 @@ const summaryAsObjectGroups  = computed(() => groupRows(filteredStandardObjectRo
 const headerCount = computed(() => {
   if (viewMode.value === 'advanced') return advancedCount.value
   if (viewMode.value === 'expert' && !showSummary.value) return pagination.value.total
-  const rows = viewMode.value === 'standard'
-    ? [...standardSubjectRows.value, ...standardObjectRows.value]
-    : [...filteredStandardSubjectRows.value, ...filteredStandardObjectRows.value]
+  // The Field Assistant counts the whole index; the Raw data summary counts
+  // what the relationship dropdown leaves.
+  if (viewMode.value === 'standard') return allAssociationRows.value.length
+  const rows = [...filteredStandardSubjectRows.value, ...filteredStandardObjectRows.value]
   return new Set(rows.map((r) => r.id)).size
 })
 
@@ -774,6 +739,7 @@ function openViewer(ba) {
 
 onMounted(() => {
   document.addEventListener('copy', copyRawSelection)
+  restoreViewMode()
   watch(() => [props.taxonId, props.otuId], () => {
     ++loadRequestId
     summaryLoaded.value = false
@@ -810,11 +776,6 @@ onBeforeUnmount(() => {
   ++loadRequestId
 })
 
-function setShowUncertainRecords(showUncertain) {
-  showUncertainRecords.value = showUncertain
-  writeBrowserSession(STANDARD_UNCERTAIN_RECORDS_KEY, { uncertain: showUncertain })
-}
-
 function setSelectedRelationships(selected) {
   selectedRelationships.value = selected
   relationshipPreferences.value = updateRelationshipPreferences(
@@ -839,9 +800,21 @@ function refreshExpertRelationships() {
   return loadCurrentView()
 }
 
+/**
+ * Restoring the saved view belongs on mount, not in the ref's initial value:
+ * the server renders this panel too, and it has no browser storage to read.
+ * Starting both renders in the Field Assistant keeps hydration in step, and
+ * the mount below switches the view before the first request goes out, so a
+ * restored Advanced does not load the Field Assistant's index first.
+ */
+function restoreViewMode() {
+  viewMode.value = readViewMode()
+}
+
 function setViewMode(mode) {
   if (viewMode.value === mode) return
   viewMode.value = mode
+  writeViewMode(mode)
   selectedGroup.value = null
   forcedSummary.value = false
   pagination.value = { page: 1, per: props.per, total: 0 }
@@ -978,8 +951,12 @@ async function loadStandardView() {
   standardIndexComplete.value = false
   standardIndexError.value = ''
   standardReady.value = false
-  summaryAsSubjectRows.value = []
-  summaryAsObjectRows.value = []
+  // The two row refs are not cleared here. On a flat rank they are
+  // ensureSummary's own cache, so emptying them first made it hand back two
+  // empty lists: after a visit to Raw data, which is what fills them, the
+  // Field Assistant then said "No records found." for a taxon the index does
+  // hold. standardReady above already hides the table while this runs, and a
+  // change of taxon clears both refs in its own watcher.
   try {
     let result = isFlatRank.value
       ? await ensureSummary(requestId)
@@ -1308,6 +1285,8 @@ async function fetchLegacyCitations(associationId, requestId) {
 }
 
 async function showStandardRecords(group) {
+  // A drilldown is a round trip -- its back button returns to the Field
+  // Assistant -- so it opens Raw data without saving it as the chosen view.
   viewMode.value = 'expert'
   return selectGroup({ ...group, key: group.name, detailKey: group.key, fromStandard: true })
 }

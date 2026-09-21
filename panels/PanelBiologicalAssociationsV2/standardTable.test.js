@@ -39,29 +39,27 @@ const group = (counts, extra = {}) => ({
   counts: { confirmed: 0, weak: 0, excluded: 0, ...counts }, ...extra
 })
 
-test('every row renders all three slots in a fixed order', async t => {
+test('a row renders the one dot its best evidence earns', async t => {
   const state = await createTable(t)
-  for (const counts of [{ confirmed: 3 }, { weak: 1 }, { excluded: 7 }, { confirmed: 2, excluded: 1 }]) {
-    const marks = state.rowMarks(group(counts))
-    assert.deepEqual(marks.map(mark => mark.key), ['confirmed', 'weak', 'excluded'],
-      'a row with only one category must still reserve the other two columns')
-    assert.deepEqual(marks.map(mark => mark.class),
-      ['text-success', 'text-warning', 'text-danger'])
-  }
+  const best = counts => state.bestMark(group(counts))
+  assert.equal(best({ confirmed: 3 }).class, 'text-success')
+  assert.equal(best({ weak: 1 }).class, 'text-warning')
+  assert.equal(best({ excluded: 7 }).class, 'text-danger')
+  // A mixed row reads as its best record, not as its worst.
+  assert.equal(best({ confirmed: 2, weak: 5, excluded: 30 }).class, 'text-success')
+  assert.equal(best({ weak: 5, excluded: 30 }).class, 'text-warning')
 })
 
-test('a slot carries its own record count, zero when the category is absent', async t => {
+test('the dot carries its own category count, and its title the whole share', async t => {
   const state = await createTable(t)
-  const marks = state.rowMarks(group({ confirmed: 8, weak: 3 }))
-  assert.deepEqual(marks.map(mark => mark.count), [8, 3, 0])
-  assert.equal(marks[0].title, '8 of 11 records: immature stage, or adult reared from or feeding observed in the wild')
-  assert.equal(marks[1].title, '3 of 11 records: adult collected from')
+  const mark = state.bestMark(group({ confirmed: 8, weak: 3 }))
+  assert.equal(mark.count, 8)
+  assert.equal(mark.title, '8 of 11 records: immature stage, or adult reared from or feeding observed in the wild')
 })
 
-test('a row without counts still reserves its three slots', async t => {
+test('a row without counts gets no dot rather than an invented colour', async t => {
   const state = await createTable(t)
-  const marks = state.rowMarks({ count: 0, name: 'X' })
-  assert.deepEqual(marks.map(mark => mark.count), [0, 0, 0])
+  assert.equal(state.bestMark({ count: 0, name: 'X' }), null)
 })
 
 test('sections keep their rows grouped by family for the table body', async t => {
@@ -76,7 +74,7 @@ test('sections keep their rows grouped by family for the table body', async t =>
   assert.deepEqual(state.visibleParts.value, ['leaf'])
 })
 
-// The dots only stay in one column because every count reserves the same
+// The dot only stays in one column because every count reserves the same
 // width -- but reserving a fixed three digits wastes two digit widths per row.
 test('the count reserves only as many digits as the widest count needs', async t => {
   const rows = [
@@ -170,7 +168,7 @@ test('a row leaving the table takes its popover with it', async t => {
 
   state.toggleMarks(row, stubEvent())
   assert.equal(state.activeRow.value.key, 'taxon:1')
-  // What the uncertain-records switch or a page change does.
+  // What a page change or a new taxon does.
   sections[0].rows = []
   assert.equal(state.activeRow.value, null)
 })
@@ -181,7 +179,8 @@ test('the dot group names its whole breakdown, so it needs no visible text', asy
   assert.ok(label.includes('8 of 11 records: immature stage'))
   assert.ok(label.includes('3 of 11 records: adult collected from'))
   assert.ok(!label.includes('vague relationships'))
-  // The popover lists the same categories, the empty slot aside.
+  // The visible dot is green alone, but the name and the popover still carry
+  // the amber share -- the simplification is in the picture, not in the data.
   assert.deepEqual(state.rowMarkLines(group({ confirmed: 8, weak: 3 })).map(mark => mark.key),
     ['confirmed', 'weak'])
 })
