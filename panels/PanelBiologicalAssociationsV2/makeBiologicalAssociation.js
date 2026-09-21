@@ -35,9 +35,27 @@ export function hasTaxonName(otu) {
 }
 
 /**
- * Reduces an object_tag's otu_tag span (see otuTag.js) to the name this
- * panel wants to display: just the italicized construct, "sp." appended for
- * a bare-genus determination.
+ * Reduces an object_tag's otu_tag span (see otuTag.js) to the name this panel
+ * displays: the marked-up name with its authorship, minus TaxonWorks' own
+ * record annotations.
+ *
+ * "[c]" is appended to the label of an OTU filed under a Combination
+ * ("<i>Calystegia sepium</i> [c]") — a database annotation, not part of the
+ * name. Only a *trailing* marker is dropped: square brackets also occur inside
+ * names ("Basitropidini [sic]").
+ *
+ * Authorship is kept: it is part of how a determination reads. The exception is
+ * a bare-genus determination, see below.
+ *
+ * `dropAcceptedTail` removes the "<em>now</em> <accepted name>" tail TaxonWorks
+ * appends to a synonym's tag. The caller passes it once it resolved the
+ * accepted name itself (see acceptedName) and renders that part with its own
+ * link to the OTU that carries the records — otherwise the name would read
+ * twice. Without a resolved accepted name the tail stays, so nothing is lost —
+ * except when it repeats the name it follows verbatim ("<i>Cytisus scoparius</i>
+ * Wimm. ex W.D.J.Koch <em>now</em> <i>Cytisus scoparius</i> Wimm. ex
+ * W.D.J.Koch", OTU 736049, whose TaxonName is valid and has no accepted name to
+ * resolve). That says nothing and is dropped either way.
  *
  * A name can carry multiple separately-italicized runs, e.g. a subgenus:
  * "<i>Hypera</i> (<i>Hypera</i>) <i>miles</i> (Paykull, 1792)" — so the match
@@ -46,23 +64,55 @@ export function hasTaxonName(otu) {
  *
  * A taxon-name-linked determination reaching only genus rank (no species
  * epithet) renders as a single italicized word, e.g. "<i>Promecops</i>
- * Sahlberg, 1823" — TaxonWorks' own tag omits any "sp." qualifier, so add
- * one back. Detected by stripping tags/parens from the matched run and
- * counting words, not by naively checking for whitespace in a single
- * capture (which the subgenus case would misread as "has a species").
+ * Sahlberg, 1823" — TaxonWorks' own tag omits any "sp." qualifier, so add one
+ * back, and drop the authorship there, which belongs to the genus and would
+ * read as the species author. Detected by stripping tags/parens from the
+ * matched run and counting words, not by naively checking for whitespace in a
+ * single capture (which the subgenus case would misread as "has a species").
  *
- * modules/keys/KeysIndex.vue extracts the same otu_tag span but keeps the
- * author-year (name + authorship verbatim, no "sp." for a bare genus) — a
+ * modules/keys/KeysIndex.vue extracts the same otu_tag span but keeps it
+ * verbatim (authorship kept, no "[c]" handling, no "sp." for a bare genus) — a
  * deliberately different name policy, so this reduction step is not shared.
  */
-function extractNameHtml(objectTag) {
+function extractNameHtml(objectTag, dropAcceptedTail = false) {
   const span = extractOtuTagSpan(objectTag)
   if (!span) return null
-  const italics = span.match(/<i>[\s\S]*<\/i>/)
-  if (!italics) return span
-  const html = italics[0]
-  const words = html.replace(/<[^>]+>/g, '').replace(/[()]/g, '').trim().split(/\s+/).filter(Boolean)
-  return words.length > 1 ? html : `${html} sp.`
+  let name = span.replace(/\s*\[c\]\s*$/, '').trim()
+  const tail = name.match(/^([\s\S]*?)\s*<em>\s*now\s*<\/em>\s*([\s\S]*)$/)
+  if (tail && (dropAcceptedTail || plainText(tail[1]) === plainText(tail[2]))) name = tail[1].trim()
+  const italics = name.match(/<i>[\s\S]*<\/i>/)
+  if (!italics) return name || null
+  // An OTU that carries both a TaxonName and its own label renders as
+  // "<i>taxon name</i> author&nbsp;<b>otu label</b>" — the bold tail only
+  // repeats what the italic name already says. An OTU with a label and no
+  // TaxonName has no italic run at all and keeps its bold name.
+  name = name.replace(/(?:&nbsp;|\s)*<b>[\s\S]*<\/b>\s*$/, '').trim()
+  const words = italics[0].replace(/<[^>]+>/g, '').replace(/[()]/g, '').trim().split(/\s+/).filter(Boolean)
+  return words.length > 1 ? name : `${italics[0]} sp.`
+}
+
+/**
+ * The name in current use for a participant OTU, when resolveAcceptedNames()
+ * (loadStandardAssociations.js) found one that differs from the name the
+ * association was recorded under. Returns { html, otuId } or null.
+ *
+ * `cached_html` is TaxonWorks-rendered markup like object_tag; the `cached`
+ * fallback is plain text and has to be escaped. `otuId` can be null: an
+ * accepted TaxonName does not have to have an OTU of its own, and then the
+ * name is shown without a link.
+ */
+function acceptedName(otu) {
+  const accepted = otu?.accepted_taxon_name
+  if (!accepted) return null
+  const ownTaxonNameId = otu.taxon_name_id ?? otu.taxon_name?.id
+  if (ownTaxonNameId != null && String(accepted.id) === String(ownTaxonNameId)) return null
+  const name = accepted.cached_html || (accepted.cached ? `<i>${escHtml(accepted.cached)}</i>` : '')
+  if (!name) return null
+  const author = accepted.cached_author_year
+  return {
+    html: author ? `${name} ${escHtml(author)}` : name,
+    otuId: otu.accepted_otu_id || null
+  }
 }
 
 function nameHtmlFromScientificName(scientificName) {
@@ -88,9 +138,12 @@ function nameHtmlFromScientificName(scientificName) {
  * CO/FO an AnatomicalPart wraps), passed in from the panel's DWC lookup.
  * Keeping prefix separate lets the template wrap only the species name in a
  * RouterLink to the OTU page.
+ *
+ * `dropAcceptedTail` is passed through to extractNameHtml: true once the caller
+ * renders the accepted name itself.
  */
-function buildLabelParts(entity, specimenName) {
-  const speciesHtml = extractNameHtml(entity.object_tag)
+function buildLabelParts(entity, specimenName, dropAcceptedTail = false) {
+  const speciesHtml = extractNameHtml(entity.object_tag, dropAcceptedTail)
   const isPart = entity.base_class !== 'Otu' && !isSpecimenType(entity.base_class)
 
   // AnatomicalPart: object_label leads with the part name, e.g.
@@ -144,8 +197,13 @@ export function makeBiologicalAssociation(
   const subjDwc = subjSpecimen ? (localityByCoId.get(specimenKey(subjSpecimen)) || null) : null
   const objDwc  = objSpecimen  ? (localityByCoId.get(specimenKey(objSpecimen))  || null) : null
 
-  const subjLabel = buildLabelParts(subj, subjDwc?.scientificName || null)
-  const objLabel  = buildLabelParts(obj, objDwc?.scientificName || null)
+  const subjOtu = otuById.get(String(basic?.subject_otu_id))
+  const objOtu  = otuById.get(String(basic?.object_otu_id))
+  const subjAccepted = acceptedName(subjOtu)
+  const objAccepted  = acceptedName(objOtu)
+
+  const subjLabel = buildLabelParts(subj, subjDwc?.scientificName || null, !!subjAccepted)
+  const objLabel  = buildLabelParts(obj, objDwc?.scientificName || null, !!objAccepted)
 
   return {
     id: data.id,
@@ -154,7 +212,13 @@ export function makeBiologicalAssociation(
     subjectLabelPrefix:  subjLabel.prefix,
     subjectSpeciesHtml:  subjLabel.html,
     subjectOtuId:        basic?.subject_otu_id || null,
-    subjectHasTaxonName: hasTaxonName(otuById.get(String(basic?.subject_otu_id))),
+    subjectHasTaxonName: hasTaxonName(subjOtu),
+    // The name in current use, shown after the recorded one. Raw data keeps the
+    // record as it was entered — including its link — and points at the OTU
+    // that carries the records alongside it, rather than silently replacing it
+    // the way the Field Assistant does.
+    subjectAcceptedNameHtml: subjAccepted?.html  || null,
+    subjectAcceptedOtuId:    subjAccepted?.otuId || null,
     subjectSpecimenType: subjSpecimen?.type || null,
     subjectSpecimenId:   subjSpecimen?.id || null,
     subjectLocality:    subjDwc,
@@ -166,7 +230,9 @@ export function makeBiologicalAssociation(
     objectLabelPrefix:  objLabel.prefix,
     objectSpeciesHtml:  objLabel.html,
     objectOtuId:        basic?.object_otu_id || null,
-    objectHasTaxonName:  hasTaxonName(otuById.get(String(basic?.object_otu_id))),
+    objectHasTaxonName:  hasTaxonName(objOtu),
+    objectAcceptedNameHtml: objAccepted?.html  || null,
+    objectAcceptedOtuId:    objAccepted?.otuId || null,
     objectSpecimenType: objSpecimen?.type || null,
     objectSpecimenId:   objSpecimen?.id || null,
     objectLocality:    objDwc,

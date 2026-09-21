@@ -262,6 +262,19 @@
                     v-html="ba.subjectSpeciesHtml"
                   />
                   <span v-else v-html="ba.subjectSpeciesHtml" />
+                  <!-- The name in current use, when the record was entered under
+                       an older one. `px-1` and not a space: Vue's whitespace
+                       condensing drops text nodes between elements. -->
+                  <template v-if="ba.subjectAcceptedNameHtml">
+                    <em class="px-1">now</em>
+                    <RouterLink
+                      v-if="ba.subjectAcceptedOtuId && ba.subjectFamily"
+                      :to="{ name: 'otus-id', params: { id: ba.subjectAcceptedOtuId } }"
+                      class="hover:underline"
+                      v-html="ba.subjectAcceptedNameHtml"
+                    />
+                    <span v-else v-html="ba.subjectAcceptedNameHtml" />
+                  </template>
                 </span>
               </div>
             </VTableBodyCell>
@@ -293,6 +306,19 @@
                     v-html="ba.objectSpeciesHtml"
                   />
                   <span v-else v-html="ba.objectSpeciesHtml" />
+                  <!-- The name in current use, when the record was entered under
+                       an older one. `px-1` and not a space: Vue's whitespace
+                       condensing drops text nodes between elements. -->
+                  <template v-if="ba.objectAcceptedNameHtml">
+                    <em class="px-1">now</em>
+                    <RouterLink
+                      v-if="ba.objectAcceptedOtuId && ba.objectFamily"
+                      :to="{ name: 'otus-id', params: { id: ba.objectAcceptedOtuId } }"
+                      class="hover:underline"
+                      v-html="ba.objectAcceptedNameHtml"
+                    />
+                    <span v-else v-html="ba.objectAcceptedNameHtml" />
+                  </template>
                 </span>
               </div>
             </VTableBodyCell>
@@ -1188,8 +1214,8 @@ async function loadAdvancedTaxa(ids) {
     if (!otus || !isCurrent()) return null
     const otuById = new Map(advancedTaxa.value.otuById)
     for (const otu of otus) otuById.set(String(otu.id), otu)
-    // Same resolution Standard and Raw data use, so an OTU filed under an older
-    // name still shows the name in current use and links to the right OTU page.
+    // The same resolution every view runs, so an OTU filed under an older name
+    // still shows the name in current use and links to the right OTU page.
     if (!await resolveAcceptedNames(otuById, wanted, makeAPIRequest, isCurrent)) return null
     if (!isCurrent()) return null
     advancedTaxa.value = { ...advancedTaxa.value, otuById }
@@ -1523,6 +1549,19 @@ async function enrichExpertFamilies(basicMap, requestId) {
     return basicMap
   }
   if (!rows || !isCurrent()) return null
+
+  // Raw data shows the name as recorded, so this does not replace anything --
+  // it supplies the accepted name the label cell prints after it, and the OTU
+  // that link points at. Costs nothing on a page without synonyms.
+  try {
+    if (!await resolveAcceptedNames(otuById, [...otuById.keys()], makeAPIRequest, isCurrent)) return null
+  } catch (error) {
+    // Same boundary as the classification above: a record still reads correctly
+    // under the name it was entered with, so Raw data renders without this.
+    reportLoadError(error, { view: 'raw', phase: 'optional accepted names', route: '/otus' })
+  }
+  if (!isCurrent()) return null
+
   for (const [id, otu] of otuById) expertOtuById.set(id, otu)
   return new Map(rows.map(row => [row.id, row]))
 }
