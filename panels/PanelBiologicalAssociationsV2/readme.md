@@ -118,13 +118,21 @@ pages.
 - Associations stored under nomenclatural synonyms and combinations are included
   through TaxonWorks' `coordinatify` OTU expansion. The Field Assistant groups them under
   `cached_valid_taxon_name_id`, displays the accepted name and links its accepted
-  OTU page. Raw data view retains each association's originally recorded name.
+  OTU page. Raw data view retains each association's originally recorded name and
+  its link to the OTU the association was recorded against, and prints the
+  accepted name after it as `<name> now <accepted name>`, linked to the accepted
+  OTU -- the record stays as entered while the OTU that actually carries the
+  records is one click away. TaxonWorks writes that `now` construct into the
+  `object_tag` of a synonym OTU itself but not into a combination's (which gets a
+  `[c]` marker instead), so `extractNameHtml()` drops the tag's own copy whenever
+  `resolveAcceptedNames()` supplied one, and both cases render through the same
+  linked path.
 - An Object without an AnatomicalPart names the plant rather than an organ of
-  it. **Advanced view** displays that as **on plant**. The Field Assistant leaves
-  the cell blank instead: every one of its rows is about a plant already, so a
-  whole-plant silhouette repeated the column heading and told nobody anything.
-  The icon and its `PO:0000003` mapping were removed with it, and
-  `makeStandardParticipant()` no longer reports `hasAnatomicalPart`.
+  it. Both views leave the cell blank: every one of those rows is about a plant
+  already, so a whole-plant filler repeated the column heading and told nobody
+  anything. The Field Assistant's icon and its `PO:0000003` mapping were removed
+  with it, `makeStandardParticipant()` no longer reports `hasAnatomicalPart`, and
+  **Advanced view** dropped its **on plant** text in turn.
 - The rows of all three views read at `text-sm`, set on the cells in the panel's
   own style block. TaxonPages' `VTableBody` puts `text-xs` on the `tbody`, a step
   below the panels next to this one — Descendants and synonyms, Nomenclature and
@@ -287,7 +295,7 @@ Active name filters are translated when switching synonyms or authorship.
 - A vertical rule separates the four column groups (Subject, Relationship,
   Object, Metadata) and nothing else — there is none between Family and Genus.
 - Both taxonomy sides have separate anatomical columns. Missing Subject anatomy
-  displays **adult**; missing Object anatomy displays **on plant**.
+  displays **adult**; missing Object anatomy leaves the cell blank.
 - Tags and attributes belong to each **BiologicalAssociation**, not its
   BiologicalRelationship type. Attribute names and values appear in two aligned,
   numbered lists. A combined attribute-name/value filter matches the same
