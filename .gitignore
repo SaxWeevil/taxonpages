@@ -9,3 +9,4 @@ config/**/*.development.yml
 .ipynb_checkpoints/
 docs/
 .claude/
+*.test.js
