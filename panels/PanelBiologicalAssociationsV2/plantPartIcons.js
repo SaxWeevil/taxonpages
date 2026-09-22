@@ -1,7 +1,9 @@
-// Dateien aus public/ werden unter Vites base ausgeliefert (config/router.yml
-// base_url). Ein absolutes '/images/…' laeuft deshalb ins Leere, sobald die
-// Seite in einem Unterpfad liegt (z.B. /taxonpages/). BASE_URL endet immer auf
-// '/'; unter node --test gibt es kein import.meta.env, daher der Fallback.
+import { alphabetical } from './groupStandardAssociations.js'
+
+// Files under public/ are served beneath Vite's base (config/router.yml
+// base_url), so an absolute '/images/…' path breaks once the page lives
+// under a subpath (e.g. /taxonpages/). BASE_URL always ends in '/'; node
+// --test has no import.meta.env, hence the fallback.
 const ASSET_BASE = import.meta.env?.BASE_URL || '/'
 const ICON_ROOT = `${ASSET_BASE}images/biological-associations/`
 export const PLANT_ONTOLOGY_RELEASE = 'releases/2026-01-09'
@@ -82,7 +84,6 @@ const PART_MAPPING = Object.freeze({
 })
 
 const ICON_ORDER = ['leaf', 'flower', 'bud', 'stem', 'root', 'fruitSeed']
-const alphabetical = new Intl.Collator('en', { sensitivity: 'base', numeric: true }).compare
 
 function normalizePart(value) {
   return value?.trim?.().toLocaleLowerCase('en') || ''

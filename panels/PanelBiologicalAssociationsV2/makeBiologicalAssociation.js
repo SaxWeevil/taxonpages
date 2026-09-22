@@ -16,7 +16,7 @@
 import { isSpecimenType, resolveSpecimenRef, specimenKey } from '../_shared/specimenRef.js'
 import { escHtml, splitScientificName } from '../_shared/scientificName.js'
 import { extractOtuTagSpan } from '../_shared/otuTag.js'
-export { isSpecimenType, resolveSpecimenRef, specimenKey }
+export { resolveSpecimenRef, specimenKey }
 
 /** Plain text for taxonomic name columns, filters and spreadsheet copying. */
 export function plainText(value) {
@@ -25,9 +25,14 @@ export function plainText(value) {
     .replace(/&#39;|&apos;/g, "'").replace(/&nbsp;/g, ' ').trim()
 }
 
+/** True for TaxonWorks' generic "no data" placeholder strings — blanked rather than shown. */
+export function isPlaceholderValue(text) {
+  return /^(?:not available|not specified)$/i.test(text)
+}
+
 export function displayFamily(value) {
   const family = value?.trim?.() || ''
-  return /^(?:not available|not specified)$/i.test(family) ? '' : family
+  return isPlaceholderValue(family) ? '' : family
 }
 
 export function hasTaxonName(otu) {

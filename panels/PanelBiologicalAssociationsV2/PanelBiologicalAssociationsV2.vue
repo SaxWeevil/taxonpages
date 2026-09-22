@@ -121,9 +121,10 @@
       <!-- Summary: higher-rank pages (genus and above), before drilling into a group.
            Two directions, since this taxon can appear as subject or object of an
            association (or both) — grouping always by "object" would be degenerate
-           on a page whose taxon is itself the object side (e.g. a host plant page). -->
-      <template v-else-if="viewMode === 'advanced'" />
-      <template v-else-if="showSummary">
+           on a page whose taxon is itself the object side (e.g. a host plant page).
+           Advanced renders separately above (v-show, so it keeps its own scroll
+           state) — excluded here so it doesn't also get the summary or raw table. -->
+      <template v-else-if="viewMode !== 'advanced' && showSummary">
         <div class="mb-4 flex items-center gap-2 text-sm">
           <span class="opacity-60">Group by:</span>
           <button
@@ -192,7 +193,7 @@
         </div>
       </template>
 
-      <template v-else>
+      <template v-else-if="viewMode !== 'advanced'">
       <div
         v-if="viewMode === 'expert' && rawLoadState === 'loading'"
         data-testid="biological-associations-raw-loading"
@@ -495,7 +496,8 @@ import {
 import DwcTable from '../_shared/DwcTable.vue'
 import ImageLightbox from '../_shared/ImageLightbox.vue'
 import ReferenceModal from '../_shared/ReferenceModal.vue'
-import { stripHtml, shortCitation } from '../_shared/citationText.js'
+import { shapeCitation } from './citationShape.js'
+import { reportPanelError } from './reportPanelError.js'
 import {
   makeBiologicalAssociation,
   plainText,
@@ -599,7 +601,6 @@ const hasExcludedAssociations = ref(false)
 const viewMode = ref('standard')
 const standardReady = ref(false)
 const standardLoadState = ref('idle')
-const standardIndexComplete = ref(false)
 const standardIndexError = ref('')
 const advancedReady = ref(false)
 const advancedLoadState = ref('idle')
@@ -608,8 +609,8 @@ const advancedRows = ref([])
 const advancedTaxa = ref({ otuById: new Map(), dwcBySpecimen: new Map() })
 // Family, subfamily, tribe and the genus OTU for every name Advanced shows.
 // The panel owns this because it decides when the view is complete enough to
-// appear, and the user asked to see a finished table rather than one that
-// fills in its Family column afterwards.
+// appear: nothing is published until names and families are complete (see
+// readme.md's Advanced section).
 const advancedClassification = ref(new Map())
 const advancedToolbar = ref(null)
 const advancedRowsToolbar = ref(null)
@@ -724,24 +725,12 @@ function fetchDwcForOtu(otuId, errorSet = null) {
       delete dwcPromiseCache[otuId]
       if (errorSet) {
         errorSet.add(String(otuId))
-        reportLoadError(error, {
+        reportPanelError(error, {
           view: 'standard', phase: 'optional DwC inventory', route: '/otus/:id/inventory/dwc.json'
         })
       }
       return []
     })
-}
-
-function reportLoadError(error, context) {
-  if (typeof __APP_ENV__ !== 'undefined' && __APP_ENV__.debug && typeof console !== 'undefined') {
-    console.warn('[biological-associations]', {
-      view: context.view,
-      phase: context.phase,
-      route: context.route,
-      status: error?.response?.status || error?.status || null,
-      message: error?.message || String(error)
-    })
-  }
 }
 
 async function fetchOtuScopeMembership(otuIds, taxonNameId, isCurrent) {
@@ -772,7 +761,6 @@ onMounted(() => {
     hasExcludedAssociations.value = false
     standardReady.value = false
     standardLoadState.value = 'idle'
-    standardIndexComplete.value = false
     standardIndexError.value = ''
     advancedReady.value = false
     advancedLoadState.value = 'idle'
@@ -790,10 +778,8 @@ onMounted(() => {
     selectedRelationships.value = []
     relationshipPreferences.value = readSessionRelationshipPreferences()
     standardTaxa.value = { otuById: new Map(), dwcBySpecimen: new Map() }
-    selectedGroup.value = null
-    forcedSummary.value = false
     biologicalAssociations.value = []
-    pagination.value = { page: 1, per: props.per, total: 0 }
+    resetDrilldown()
     loadCurrentView()
   }, { immediate: true })
 })
@@ -801,6 +787,15 @@ onBeforeUnmount(() => {
   document.removeEventListener('copy', copyRawSelection)
   ++loadRequestId
 })
+
+// Leaves a drilled-into group/relationship-filter selection and returns to
+// the taxon's whole scope at page 1 — shared by every place that must undo a
+// drilldown before applying a new selection or view.
+function resetDrilldown() {
+  selectedGroup.value = null
+  forcedSummary.value = false
+  pagination.value = { page: 1, per: props.per, total: 0 }
+}
 
 function setSelectedRelationships(selected) {
   selectedRelationships.value = selected
@@ -810,8 +805,6 @@ function setSelectedRelationships(selected) {
     { ...relationshipPreferences.value, ...readSessionRelationshipPreferences() }
   )
   writeSessionRelationshipPreferences(relationshipPreferences.value)
-  selectedGroup.value = null
-  forcedSummary.value = false
   return refreshExpertRelationships()
 }
 
@@ -819,10 +812,8 @@ function refreshExpertRelationships() {
   if (viewMode.value !== 'expert') return
   // A drilled-down group's ids were calculated for the previous selection.
   // Return to the complete taxon scope before applying the new server filter.
-  selectedGroup.value = null
-  forcedSummary.value = false
   biologicalAssociations.value = []
-  pagination.value = { page: 1, per: props.per, total: 0 }
+  resetDrilldown()
   return loadCurrentView()
 }
 
@@ -841,9 +832,7 @@ function setViewMode(mode) {
   if (viewMode.value === mode) return
   viewMode.value = mode
   writeViewMode(mode)
-  selectedGroup.value = null
-  forcedSummary.value = false
-  pagination.value = { page: 1, per: props.per, total: 0 }
+  resetDrilldown()
   activeCitation.value = null
   advancedMetadataError.value = ''
   failedAdvancedCitation.value = null
@@ -962,7 +951,7 @@ async function loadSummary() {
     summaryLoaded.value = false
     rawLoadState.value = 'error'
     loadError.value = 'The association summary could not be loaded.'
-    reportLoadError(error, { view: 'raw', phase: 'summary index', route: '/biological_associations/basic' })
+    reportPanelError(error, { view: 'raw', phase: 'summary index', route: '/biological_associations/basic' })
   } finally {
     if (requestId === loadRequestId) isLoading.value = false
   }
@@ -974,7 +963,6 @@ async function loadStandardView() {
   if (standardReady.value && standardLoadState.value === 'ready') return
   isLoading.value = true
   standardLoadState.value = 'loading'
-  standardIndexComplete.value = false
   standardIndexError.value = ''
   standardReady.value = false
   // The two row refs are not cleared here. On a flat rank they are
@@ -1025,7 +1013,7 @@ async function loadStandardView() {
     } catch (error) {
       if (isCurrent()) {
         standardIndexError.value = 'Some family details could not be loaded.'
-        reportLoadError(error, { view: 'standard', phase: 'optional classification', route: '/taxon_names' })
+        reportPanelError(error, { view: 'standard', phase: 'optional classification', route: '/taxon_names' })
       }
     }
     if (!isCurrent()) return
@@ -1041,7 +1029,6 @@ async function loadStandardView() {
       relationshipOptions.value,
       relationshipPreferences.value
     )
-    standardIndexComplete.value = true
     standardReady.value = true
     standardLoadState.value = 'ready'
   } catch (error) {
@@ -1050,7 +1037,7 @@ async function loadStandardView() {
       standardLoadState.value = 'error'
       standardTaxa.value = { otuById: new Map(), dwcBySpecimen: new Map() }
       loadError.value = 'The standard view could not be loaded completely.'
-      reportLoadError(error, { view: 'standard', phase: 'primary index', route: '/biological_associations/basic' })
+      reportPanelError(error, { view: 'standard', phase: 'primary index', route: '/biological_associations/basic' })
     }
   } finally {
     if (isCurrent()) {
@@ -1156,7 +1143,7 @@ async function loadAdvancedRows() {
         if (isCurrent()) {
           advancedMetadataError.value = 'Some taxonomy could not be loaded.'
           failedAdvancedMetadata.value = {}
-          reportLoadError(metadataError, { view: 'advanced', phase: 'taxonomy', route: '/otus' })
+          reportPanelError(metadataError, { view: 'advanced', phase: 'taxonomy', route: '/otus' })
         }
       }
     }
@@ -1169,7 +1156,7 @@ async function loadAdvancedRows() {
       advancedReady.value = false
       advancedLoadState.value = 'error'
       loadError.value = 'The advanced view could not be loaded completely.'
-      reportLoadError(error, { view: 'advanced', phase: 'primary index', route: '/biological_associations/basic' })
+      reportPanelError(error, { view: 'advanced', phase: 'primary index', route: '/biological_associations/basic' })
     }
   } finally {
     if (requestId === loadRequestId) isLoading.value = false
@@ -1221,7 +1208,7 @@ async function loadAdvancedTaxa(ids) {
     advancedTaxa.value = { ...advancedTaxa.value, otuById }
     return advancedTaxa.value
   } catch (error) {
-    reportLoadError(error, { view: 'advanced', phase: 'current-page taxonomy', route: '/otus' })
+    reportPanelError(error, { view: 'advanced', phase: 'current-page taxonomy', route: '/otus' })
     throw error
   }
 }
@@ -1246,7 +1233,7 @@ async function loadAdvancedImages(ids) {
       result.get(id).push(image)
     }
   } catch (error) {
-    reportLoadError(error, { view: 'advanced', phase: 'images', route: '/depictions/gallery' })
+    reportPanelError(error, { view: 'advanced', phase: 'images', route: '/depictions/gallery' })
     throw error
   }
   return result
@@ -1280,7 +1267,7 @@ async function showAdvancedCitations({ associationId, citationId, full = '' }) {
   } catch (error) {
     if (requestId === loadRequestId) {
       advancedMetadataError.value = 'The references could not be loaded.'
-      reportLoadError(error, { view: 'advanced', phase: 'citation', route: '/citations' })
+      reportPanelError(error, { view: 'advanced', phase: 'citation', route: '/citations' })
     }
   }
 }
@@ -1301,11 +1288,7 @@ async function fetchLegacyCitations(associationId, requestId) {
   const citations = await fetchMetadata(`/citations?${params.toString()}`, requestId)
   const result = new Map([[associationId, []]])
   for (const cit of citations) {
-    result.get(associationId).push({
-      id: cit.id,
-      short: cit.citation_source_body || '',
-      full: cit.source?.cached || cit.citation_source_body || ''
-    })
+    result.get(associationId).push(shapeCitation(cit))
   }
   return result
 }
@@ -1351,9 +1334,13 @@ function clearGroupSelection() {
 
 function makeGalleryImage(depiction) {
   const image = depiction.image || {}
-  const original = image.original || (image.original_png && typeof __APP_ENV__ !== 'undefined'
-    ? `${__APP_ENV__.url}/${image.original_png.substring(8)}?project_token=${__APP_ENV__.project_token}`
-    : image.original_png)
+  // Prefer the API's own `original`; only reconstruct from `original_png`
+  // (an API path, not a usable <img src>) when `__APP_ENV__` is available to
+  // build a full URL from it — never fall back to the raw path itself.
+  let original = image.original || null
+  if (!original && image.original_png && typeof __APP_ENV__ !== 'undefined') {
+    original = `${__APP_ENV__.url}/${image.original_png.substring(8)}?project_token=${__APP_ENV__.project_token}`
+  }
   return {
     id: image.id,
     thumb: image.thumb,
@@ -1423,9 +1410,6 @@ async function fetchDepictions(associationIds, requestId) {
   return result
 }
 
-/** Entries share one shape with the Advanced producers -- { id, short, full }.
- * `full` is what the ReferenceModal binding reads; a second key name here left
- * the Raw data modal empty. */
 async function fetchCitations(associationIds, requestId) {
   if (!associationIds.length) return new Map()
 
@@ -1438,11 +1422,7 @@ async function fetchCitations(associationIds, requestId) {
 
   const result = new Map()
   for (const cit of citations) {
-    const entry = {
-      id: cit.id,
-      short: shortCitation(stripHtml(cit.citation_source_body || '')),
-      full: cit.source?.cached || cit.citation_source_body || ''
-    }
+    const entry = shapeCitation(cit)
     if (!result.has(cit.citation_object_id)) result.set(cit.citation_object_id, [])
     result.get(cit.citation_object_id).push(entry)
   }
@@ -1545,7 +1525,7 @@ async function enrichExpertFamilies(basicMap, requestId) {
     // Raw data can still use the Basic rows when optional ancestry completion
     // is unavailable; only the Standard summary treats this as a warning at
     // its own transaction boundary.
-    reportLoadError(error, { view: 'raw', phase: 'optional classification', route: '/taxon_names' })
+    reportPanelError(error, { view: 'raw', phase: 'optional classification', route: '/taxon_names' })
     return basicMap
   }
   if (!rows || !isCurrent()) return null
@@ -1558,7 +1538,7 @@ async function enrichExpertFamilies(basicMap, requestId) {
   } catch (error) {
     // Same boundary as the classification above: a record still reads correctly
     // under the name it was entered with, so Raw data renders without this.
-    reportLoadError(error, { view: 'raw', phase: 'optional accepted names', route: '/otus' })
+    reportPanelError(error, { view: 'raw', phase: 'optional accepted names', route: '/otus' })
   }
   if (!isCurrent()) return null
 
@@ -1729,7 +1709,7 @@ async function loadBiologicalAssociations(page = 1) {
       pagination.value = { ...pagination.value, total: 0 }
       loadError.value = 'The association records could not be loaded.'
       rawLoadState.value = 'error'
-      reportLoadError(e, { view: 'raw', phase: 'association records', route: '/biological_associations' })
+      reportPanelError(e, { view: 'raw', phase: 'association records', route: '/biological_associations' })
     }
   } finally {
     if (requestId === loadRequestId) {

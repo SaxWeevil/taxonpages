@@ -539,7 +539,6 @@ test('higher-rank Standard publishes once after both complete Basic indices', as
   release({ data: [page(3, true)], headers: { 'pagination-total': '2', 'pagination-total-pages': '2' } })
   await loading
   assert.equal(state.standardReady.value, true)
-  assert.equal(state.standardIndexComplete.value, true)
   assert.equal(state.standardLoadState.value, 'ready')
   assert.equal(state.summaryAsSubjectRows.value.length, 2)
   assert.equal(state.summaryAsObjectRows.value.length, 2)
@@ -928,4 +927,32 @@ test('the Field Assistant still has its rows after a visit to Raw data', async t
   assert.equal(state.standardLoadState.value, 'ready')
   assert.equal(state.standardAsSubject.value.length, 1)
   assert.equal(state.headerCount.value, 1)
+})
+
+test('makeGalleryImage keeps an explicit original URL as-is', async t => {
+  const state = await createPanel(t, { get: async () => emptyResponse() })
+  const image = state.makeGalleryImage({
+    image: { id: 1, original: 'https://example.org/full.jpg', original_png: '/api/v1/images/1/original.png' }
+  })
+  assert.equal(image.original, 'https://example.org/full.jpg')
+})
+
+test('makeGalleryImage reconstructs a URL from original_png when __APP_ENV__ is available', async t => {
+  const previousEnv = globalThis.__APP_ENV__
+  globalThis.__APP_ENV__ = { url: 'https://sfg.taxonworks.org', project_token: 'tok' }
+  t.after(() => { globalThis.__APP_ENV__ = previousEnv })
+
+  const state = await createPanel(t, { get: async () => emptyResponse() })
+  const image = state.makeGalleryImage({ image: { id: 1, original_png: '/api/v1/images/1/original.png' } })
+  assert.equal(image.original, 'https://sfg.taxonworks.org/images/1/original.png?project_token=tok')
+})
+
+test('makeGalleryImage never returns a raw, un-rewritten original_png path', async t => {
+  const previousEnv = globalThis.__APP_ENV__
+  delete globalThis.__APP_ENV__
+  t.after(() => { globalThis.__APP_ENV__ = previousEnv })
+
+  const state = await createPanel(t, { get: async () => emptyResponse() })
+  const image = state.makeGalleryImage({ image: { id: 1, original_png: '/api/v1/images/1/original.png' } })
+  assert.equal(image.original, null)
 })

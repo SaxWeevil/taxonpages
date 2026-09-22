@@ -1,4 +1,4 @@
-import { makeStandardParticipant } from './makeBiologicalAssociation.js'
+import { makeStandardParticipant, isPlaceholderValue } from './makeBiologicalAssociation.js'
 import { emptyStandardCounts, standardRowMark } from './standardEvidence.js'
 
 const collator = new Intl.Collator('en', { sensitivity: 'base', numeric: true })
@@ -10,7 +10,7 @@ function sortedValues(values) {
 
 function displayValue(value) {
   const text = value?.trim?.() || ''
-  return /^(?:not available|not specified)$/i.test(text) ? '' : text
+  return isPlaceholderValue(text) ? '' : text
 }
 
 // A record without a readable AnatomicalPart names the plant, not an organ of

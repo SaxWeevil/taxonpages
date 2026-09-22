@@ -136,6 +136,7 @@ import { ADVANCED_COLUMNS, DEFAULT_COLUMNS, columnValues, defaultAdvancedSetting
 import { loadAdvancedMetadata } from './loadAdvancedAssociations.js'
 import { readBrowserSession, writeBrowserSession } from './browserSessionStorage.js'
 import { copyTableSelection } from './tableClipboard.js'
+import { reportPanelError } from './reportPanelError.js'
 
 const props = defineProps({
   rows: { type: Array, required: true }, taxa: { type: Object, required: true },
@@ -221,15 +222,6 @@ function movePage(fromPer, toPer) {
   return Math.min(Math.floor(firstIndex / toPer) + 1, pages)
 }
 
-function reportMetadataError(error, phase, route) {
-  if (typeof __APP_ENV__ !== 'undefined' && __APP_ENV__.debug && typeof console !== 'undefined') {
-    console.warn('[biological-associations]', {
-      view: 'advanced', phase, route,
-      status: error?.response?.status || error?.status || null,
-      message: error?.message || String(error)
-    })
-  }
-}
 function setColumns(columns) { if (columns.length) updateSettings({ columns }) }
 
 function setFilter(key, values) {
@@ -339,7 +331,7 @@ async function ensureImages() {
   } catch (loadError) {
     if (!disposed) {
       error.value = 'Association images could not be loaded. Please retry.'
-      reportMetadataError(loadError, 'images', '/depictions/gallery')
+      reportPanelError(loadError, { view: 'advanced', phase: 'images', route: '/depictions/gallery' })
     }
   }
 }

@@ -2,7 +2,7 @@
 
 > **Compatibility:** `@sfgrp/taxonpages` ≥ 0.5.4 (npm package setup)
 
-New experimental panel (`panel:biological-associations-v2`) displaying biological associations for a taxon. Based on the built-in `panel:biological-associations` panel.
+Panel (`panel:biological-associations-v2`) displaying biological associations for a taxon. Based on the built-in `panel:biological-associations` panel.
 
 Added features: with inline depictions, asserted distributions, and citations that can be clicked to show the full reference. URLs in references are clickable both in the citation popup and the image popup. 
 
@@ -550,11 +550,6 @@ never being written), and blocked storage leaving the default in place instead
 of throwing. The panel-level suite adds the restore itself and a Records
 drilldown into Raw data leaving the saved view alone.
 
-Each of these was checked once against the defect it exists for, by
-reintroducing that defect in a throwaway copy under `panels/.redcheck/` — never
-in the files the dev server is watching, which is what produced a half-applied
-served module on 2026-09-16.
-
 Regression cases cover FO-only associations, multiple OTUs of one taxon,
 wrapped parts, colliding CO/FO IDs, both directions, higher ranks, alphabetical
 ordering, complete server pagination and stale requests. Component-setup tests
@@ -565,25 +560,13 @@ families have dedicated regression cases.
 Advanced regression cases cover independent synonym switches, preserved name
 filters, complete subspecies names, default relationships, attribute/value pairing,
 rank/group session isolation, HTTP session support, bounded metadata batches,
-shared ancestry caching and stale view transitions. Browser checks on 2026-09-14
-covered Dianthus carthusianorum (FO details), Hypera conmaculata (both synonym
-directions), Ixapion variegatum (attributes and subspecies), Donus elegans (tags),
-Adosomus roridus (depictions and reference modals), and Hypera (490 records,
-pagination and global filtering). New-tab persistence and rank/group
-resets were checked; menus were verified at 390 px in both themes. A temporary
-browser fixture verified actual copy events with FO/CO suffixes and icon text.
+shared ancestry caching and stale view transitions. These behaviors, including
+new-tab persistence, rank/group resets, mobile menus, the three-click sort
+cycle, default column visibility, and citation short labels matching the
+individual Reference modal, are also confirmed against the running dev server
+in both themes and at mobile widths whenever they change.
 
-The later Advanced updates were checked on the same date: all relationships;
-centered 50/100 selection; optional tribes on both
-sides; full original/accepted pairs with optional roman authorship; preserved
-name filters; transparent buttons with gray/blue outlines; and exclusion of Donus elegans' unnamed
-plant OTU in all three views. Regression tests additionally exercise exclusion
-before Raw data page slicing/counting and migration of removed settings. Mobile
-menus were checked at 390 px in dark and light themes. The three-click sort cycle
-restores the exact original order and neutral button. Depictions/Area default to
-hidden; one Data attribute option toggles both columns. Citation short labels
-and the individual Reference modal match Raw data (Skuhrovec, 2005b:228); citation
-filters and Field Assistant's separate legacy/undefined defaults were also checked.
-The production build is also required; if the local read-only `node_modules`
-environment prevents it from writing its generated source asset, that
-environmental limitation is reported separately from source/test failures.
+A production build is required for full verification; if the local read-only
+`node_modules` environment prevents it from writing its generated source
+asset, that environmental limitation is reported separately from source/test
+failures.
