@@ -44,6 +44,7 @@ const ICONS = Object.freeze({
 // Keeping the PO identity here makes each simplification auditable.
 const PART_MAPPING = Object.freeze({
   leaf: { poId: 'PO:0025034', icon: 'leaf' },
+  'leaf adaxial epidermis': { poId: 'PO: 0006018', icon: 'leaf' },
   petiole: { poId: 'PO:0020038', icon: 'leaf' },
   'leaf axil': { poId: 'PO:0009023', icon: 'leaf', hint: 'axil' },
   'leaf epidermis': { poId: 'PO:0006016', icon: 'leaf' },
@@ -53,6 +54,9 @@ const PART_MAPPING = Object.freeze({
   flower: { poId: 'PO:0009046', icon: 'flower' },
   inflorescence: { poId: 'PO:0009049', icon: 'flower' },
   'plant ovary': { poId: 'PO:0009072', icon: 'flower' },
+  'umbel inflorescence': { poId: 'PO:0030129', icon: 'flower' },
+  'flower pedicel': { poId: 'PO:0030113', icon: 'flower' },
+  'sepal': { poId: 'PO:0009031', icon: 'flower' },
 
   bud: { poId: 'PO:0000055', icon: 'bud' },
   'flower bud': { poId: 'PO:0000056', icon: 'bud' },
@@ -60,6 +64,7 @@ const PART_MAPPING = Object.freeze({
   stem: { poId: 'PO:0009047', icon: 'stem' },
   'shoot axis': { poId: 'PO:0025029', icon: 'stem' },
   'stem base': { poId: 'PO:0008039', icon: 'stem', hint: 'base' },
+  'bark': { poId: 'PO:0004518', icon: 'stem'},
 
   root: { poId: 'PO:0009005', icon: 'root' },
   rhizome: {
