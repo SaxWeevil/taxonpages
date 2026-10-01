@@ -10,4 +10,4 @@ config/**/*.development.yml
 docs/
 .claude/
 *.test.js
-scripts/reports/out/
+scripts/

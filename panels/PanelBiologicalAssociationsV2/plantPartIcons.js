@@ -50,6 +50,7 @@ const PART_MAPPING = Object.freeze({
   'leaf epidermis': { poId: 'PO:0006016', icon: 'leaf' },
   stipule: { poId: 'PO:0020041', icon: 'leaf' },
   'leaflet tendril': { poId: 'PO:0025362', icon: 'leaf', hint: 'tendril' },
+  'rosette': { poId: 'PO:0025615', icon: 'leaf' },
 
   flower: { poId: 'PO:0009046', icon: 'flower' },
   inflorescence: { poId: 'PO:0009049', icon: 'flower' },
