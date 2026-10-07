@@ -45,38 +45,41 @@ the lists remain separate. Descendant taxa are included on genus/family/higher
 pages.
 
 - The Field Assistant answers where it is worth looking for this beetle, so it
-  **grades** its records rather than filtering them. A record counts as
-  **confirmed** (green) when its **Subject** carries an immature stage (`egg`,
-  `larvae`, `pupa`, `nidus`), when the relationship is `reared from` or
-  `reared from galls on`, or when the Subject is an adult or carries no
-  anatomical part and the relationship is `feeding observed in the wild on`.
-  Rearing counts as confirmed evidence because it shows the host carried the
-  development, not just the adult; a gall rearing is a relationship of its own
-  in TaxonWorks and is listed beside it rather than matched by prefix. It is
-  also the one green rule that ignores the Subject's anatomical part — the
-  relationship already carries the evidence, and gating it would hang the colour
-  on a spelling (the project's gall rearings are filed under `larva`, in the
-  singular, which is not one of the stage terms). A feeding observation stays
-  gated, because it describes the individual that was watched. Being
-  `collected from` a plant shows neither, so it is **weak** evidence (amber). Everything outside the
-  criteria is **red** — above all the legacy feeding records that name neither a
-  stage nor an organ. Nothing is hidden: an earlier version kept amber and red
-  behind a *Show uncertain records* switch, which made a plant with no records
-  and a plant with poor records look exactly alike. The switch is gone.
+  **grades** its records rather than filtering them: each record is **green**
+  (strong evidence), **orange** (moderate) or **red** (weak or vague). The grade
+  depends on two things — the **stage** carried by the Subject's anatomical part
+  (`egg`, `larva`, `pupa`, `nidus`, `adult`) and the **relationship**.
+  **Which combination earns which colour is not hard-coded: it is the table in
+  `evidenceRules.js`**, one line `[stage, relationship, colour]` per case, with
+  `'*'` for "any". The most specific line wins regardless of its position
+  (stage + relationship before stage + `*` before `*` + relationship before
+  `*` + `*`), so `['pupa', '*', 'red']` plus
+  `['pupa', 'reared from galls on', 'green']` reads exactly like the rule it
+  states. The same file folds spellings (`larvae` → `larva`), says which stage a
+  Subject with **no** anatomical part counts as (`NO_STAGE_COUNTS_AS`, currently
+  `adult` — this covers most OTU and specimen records and every `[legacy]`
+  one), and holds the short label of each colour. A wrong colour or a
+  stage/relationship pair listed twice is reported in the browser console.
+  Relationship names must match TaxonWorks (case is ignored); a misspelt one
+  simply never matches and falls through to the `*` lines. Nothing is hidden: an
+  earlier version kept the weaker grades behind a *Show uncertain records*
+  switch, which made a plant with no records and a plant with poor records look
+  exactly alike. The switch is gone.
 - Each row aggregates the records of one associated taxon and can therefore mix
   evidence. It carries **one glowing dot**, the **best** category it has any
-  record in: green before amber before red. In the field the question is how good
+  record in: green before orange before red. In the field the question is how good
   the strongest evidence for this plant is, not how the pile splits — that
   breakdown is one tap away (below). The dot's priority order is
   `STANDARD_MARK_STYLES` itself, so it cannot drift from the legend. The count
   beside it sits left-aligned in a box as wide as the widest count in the table,
   so the dots read as one column down the table whether a row counts 1, 10 or
   100 records.
-- What green, amber and red **mean** is the same for every row, so it lives once
+- What green, orange and red **mean** is the same for every row, so it lives once
   in the **Records** column heading, behind the same ⓘ control the Anatomical
   parts heading uses — not repeated in each row. `EvidenceLegendInfo.vue` reads
   `STANDARD_MARK_STYLES` from `standardEvidence.js`, the very list the rows
-  render from, so legend and table wording cannot drift apart.
+  render from, and lists under each colour the cases it covers, generated from
+  the `evidenceRules.js` table — so editing the table updates the legend too.
 - How a **particular row** splits between the categories is the row's own data,
   so it stays at the row: the dot is a **control**, and opening it shows that
   row's full breakdown (“Dianthus carthusianorum — 7 records”, then a line per
@@ -84,7 +87,7 @@ pages.
   data. Pointing devices get it on hover; a tap or Enter opens it on a touch
   screen, where the native `title` it replaced never appeared at all. Its
   accessible name carries the whole breakdown (“Evidence for …: 3 of 13 records:
-  adult collected from”), so a screen reader needs no opening at all, and the dot
+  weak or vague evidence”), so a screen reader needs no opening at all, and the dot
   itself is `aria-hidden` decoration. The visible disc stays 8 px, but the
   control is 24 px on both axes and sits 0.75 rem from the count button, so the
   tap target meets WCAG 2.5.8 without changing row height or the dot column's
@@ -312,7 +315,9 @@ Active name filters are translated when switching synonyms or authorship.
   has always rendered them this way. A source whose type could not be resolved
   keeps its link, because losing every reference to one failed lookup is the
   worse failure. The column filter and the clipboard still see the whole column,
-  references and names alike.
+  references and names alike. The filter offers one term per publication
+  (`Marshall, 1922` stands for both `Marshall, 1922:59` and `…:60`); the cell,
+  the sort order and the clipboard keep the page locator.
 - Filters and sorting cover **every** record of the taxon, not the records that
   happen to be on screen: a value that only occurs on page 3 is offered by the
   filter menu and selectable from page 1. That is why Advanced reads the whole

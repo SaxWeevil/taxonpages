@@ -117,7 +117,7 @@
           class="mt-1 flex items-start gap-2"
         >
           <span class="evidence-dot mt-1 shrink-0" :class="mark.class" />
-          <span><span class="font-medium">{{ mark.count }}</span> {{ mark.reason }}</span>
+          <span><span class="font-medium">{{ mark.count }}</span> {{ mark.count === 1 ? 'record' : 'records' }}: {{ mark.reason }}</span>
         </span>
         <span
           v-if="!rowMarkLines(activeRow).length"
@@ -151,10 +151,10 @@ const tableRoot = ref(null)
 const copySelection = event => copyTableSelection(event, tableRoot.value)
 onMounted(() => document.addEventListener('copy', copySelection))
 onBeforeUnmount(() => document.removeEventListener('copy', copySelection))
-// Stage, rearing and wild feeding share the green dot: the mark says how much a
-// record is worth in the field, not which rule let it in. The wording and the
-// green-amber-red order both live in standardEvidence.js, shared with the
-// column heading's legend.
+// The dot says how much a record is worth in the field, not which rule let it
+// in. Which record earns which colour is the table in evidenceRules.js; the
+// wording and the green-orange-red order live in standardEvidence.js, shared
+// with the column heading's legend.
 function bestMark(row) {
   return standardBestMark(row)
 }

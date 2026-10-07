@@ -10,11 +10,12 @@
  *   - ./ImageLightbox.vue
  *   - ../PanelAssertedDistributions/PanelAssertedDistributions.vue
  *   - ../PanelBiologicalAssociationsV2/PanelBiologicalAssociationsV2.vue
+ *   - ../PanelBiologicalAssociationsV2/advancedAssociations.js
  *   - ../PanelBiologicalAssociationsV2/loadAdvancedAssociations.js
  *   - ../PanelMapV2/components/MapPopup.vue
  *   - ../../modules/keys/KeyView.vue
  *
- * If you change this file, sanity-check all seven call sites.
+ * If you change this file, sanity-check all eight call sites.
  */
 
 /**
@@ -49,4 +50,16 @@ export function shortCitation(body) {
   // Split on whichever separator comes first: "A, B & C" and "A & B" both
   // have to yield "A".
   return `${authorsStr.split(/[,&]/)[0].trim()} et al., ${year}`
+}
+
+/**
+ * "Marshall, 1922:60" -> "Marshall, 1922"; "Blatchley et al., 1916:127" ->
+ * "Blatchley et al., 1916". The publication a citation points into, without the
+ * page. Anything not ending in "…, YEAR:pages" (a collector name, a citation
+ * without pages) is returned unchanged, so applying it twice is safe.
+ * @param {string} label
+ * @returns {string}
+ */
+export function citationWithoutPages(label) {
+  return String(label || '').replace(/(,\s*\d{4}[a-z]?):.*$/s, '$1')
 }

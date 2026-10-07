@@ -1,6 +1,7 @@
 import { alphabetical, relationshipValue } from './groupStandardAssociations.js'
 import { anatomicalPartName, displayFamily, hasTaxonName, plainText, resolveSpecimenRef, specimenKey } from './makeBiologicalAssociation.js'
 import { isReferenceCitation, rankName } from './loadAdvancedAssociations.js'
+import { citationWithoutPages } from '../_shared/citationText.js'
 export { advancedScope } from './browserSessionStorage.js'
 
 const participantColumns = side => [
@@ -37,10 +38,14 @@ export function normalizeAdvancedSettings(value) {
   // One menu option controls the two aligned attribute columns, including
   // preferences saved when they could still be selected independently.
   if (columns.includes('attribute') || columns.includes('value')) columns.push('attribute', 'value')
+  const filters = Object.fromEntries(Object.entries(value.filters || {}).filter(([key, values]) =>
+    keys.has(key) && Array.isArray(values) && values.every(item => typeof item === 'string')))
+  // The citation filter selects publications. A selection saved while it still
+  // offered single pages keeps selecting the same publications.
+  if (filters.citations) filters.citations = [...new Set(filters.citations.map(citationWithoutPages))]
   return {
     columns: columns.length ? [...new Set(columns)] : defaults.columns,
-    filters: Object.fromEntries(Object.entries(value.filters || {}).filter(([key, values]) =>
-      keys.has(key) && Array.isArray(values) && values.every(item => typeof item === 'string'))),
+    filters,
     sort: keys.has(value.sort?.key) && ['asc', 'desc'].includes(value.sort?.direction) ? value.sort : defaults.sort,
     original: { subject: value.original?.subject === true, object: value.original?.object === true },
     showAuthorship: value.showAuthorship === true,
@@ -142,6 +147,7 @@ export function makeAdvancedRows(rows, taxa, settings, metadata = {}, classifica
     const references = citations.filter(isReferenceCitation)
     const notes = citations.filter(citation => !isReferenceCitation(citation))
       .map(citation => plainText(citation.short))
+    const labels = citations.map(citation => plainText(citation.short))
     const collector = plainText(row.citations) || subject.dwc?.recordedBy || object.dwc?.recordedBy || ''
     return { id: row.id, subject, object, relationship: relationshipValue(row),
       depictions: (metadata.depictions?.get(String(row.id)) || []).length ? 'Present' : 'Absent',
@@ -149,9 +155,11 @@ export function makeAdvancedRows(rows, taxa, settings, metadata = {}, classifica
         [[locality?.country, locality?.stateProvince, locality?.county].filter(Boolean).join(', ')].filter(Boolean),
       citationList: references,
       citationNotes: (citations.length ? notes : [collector]).filter(Boolean),
-      // One combined value, so filtering, sorting and copying keep seeing the
-      // column exactly as it reads.
-      citations: citations.length ? citations.map(citation => plainText(citation.short)) : collector,
+      // One combined value, so sorting and copying keep seeing the column
+      // exactly as it reads.
+      citations: citations.length ? labels : collector,
+      // The filter offers one term per publication, not one per cited page.
+      citationFilter: citations.length ? [...new Set(labels.map(citationWithoutPages))] : collector,
       tags: metadata.tags?.get(String(row.id)) || [],
       attributes: attrs, attribute: attrs.map(item => item.name), value: attrs.map(item => item.value)
     }
@@ -164,8 +172,13 @@ export function columnValues(row, key) {
   return Array.isArray(value) ? value.length ? value : [''] : [String(value ?? '')]
 }
 
+/** Columns whose filter offers coarser terms than the cell reads. A citation
+ * reads "Author, Year:page"; its filter selects the publication. */
+const FILTER_FIELDS = { citations: 'citationFilter' }
+export function filterValues(row, key) { return columnValues(row, FILTER_FIELDS[key] || key) }
+
 export function selectedColumnValues(rows, settings, key) {
-  return settings.filters[key] ?? [...new Set(rows.flatMap(row => columnValues(row, key)))]
+  return settings.filters[key] ?? [...new Set(rows.flatMap(row => filterValues(row, key)))]
 }
 
 /** Filter before paginating, like filter() then arrange() then slice() in R. */
@@ -180,7 +193,7 @@ export function filterAdvancedRows(rows, settings) {
       const attributes = row.attributes.length ? row.attributes : [{ name: '', value: '' }]
       if (!attributes.some(item => attributeKeys.includes(item.name) && attributeValues.includes(item.value))) return false
     }
-    return filters.every(([key, selected]) => columnValues(row, key).some(value => selected.includes(value)))
+    return filters.every(([key, selected]) => filterValues(row, key).some(value => selected.includes(value)))
   })
 }
 

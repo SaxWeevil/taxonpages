@@ -26,14 +26,22 @@
       :style="position"
       class="fixed z-30 box-border w-[min(22rem,calc(100vw-2rem))] max-h-[calc(100vh-2rem)] overflow-y-auto rounded-md border border-base-border bg-base-foreground p-2 text-base-content text-left text-xs font-normal normal-case leading-snug shadow-lg"
     >
-      <span class="font-medium">A row's dots say how its records are classified:</span>
+      <span class="block">Each record is graded by the beetle's stage and the
+        relationship; a row's dot shows the best grade among its records.</span>
       <span
         v-for="mark in marks"
         :key="mark.key"
-        class="mt-1 flex items-start gap-2"
+        class="mt-2 flex items-start gap-2"
       >
         <span class="legend-dot mt-1 shrink-0" :class="mark.class" />
-        <span>{{ mark.reason }}</span>
+        <span class="min-w-0">
+          <span class="block font-medium">{{ mark.reason }}</span>
+          <span
+            v-for="rule in mark.rules"
+            :key="rule"
+            class="block"
+          >{{ rule }}</span>
+        </span>
       </span>
     </span>
     </Teleport>

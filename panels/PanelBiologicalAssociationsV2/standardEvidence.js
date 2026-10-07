@@ -1,16 +1,18 @@
 /**
  * standardEvidence.js
  *
- * Classifies a /biological_associations/basic row for the Field Assistant.
+ * Grades a /biological_associations/basic row for the Field Assistant.
  *
  * The Field Assistant answers "where is it worth looking for this beetle?", so
  * it grades rather than filters: every associated taxon is listed, and each one
- * carries the single best mark its records earn -- green for a developmental
- * stage, a rearing or a wild feeding observation, amber for being `collected
- * from` a plant, red for the rest, above all the `[legacy] feeds on` rows that
- * name neither a stage nor an organ. Hiding the weaker ones behind a switch
- * made an absent taxon and a poorly evidenced one look the same; one dot per
- * taxon says which it is at a glance.
+ * carries the single best mark its records earn -- green, orange or red. Hiding
+ * the weaker ones behind a switch made an absent taxon and a poorly evidenced
+ * one look the same; one dot per taxon says which it is at a glance.
+ *
+ * WHICH record earns WHICH colour is not decided here but in the table in
+ * evidenceRules.js (Subject stage x relationship -> colour), so the grading can
+ * be changed by editing data. This module only reads the record's stage and
+ * relationship, looks them up there and builds the legend from the same table.
  *
  * Pure module: no Vue, no HTTP. The classification reads the SUBJECT side,
  * which biological-association data models as the animal on either page
@@ -18,28 +20,38 @@
  */
 
 import { anatomicalPartName } from './makeBiologicalAssociation.js'
+import {
+  EVIDENCE_LABELS,
+  EVIDENCE_RULES,
+  NO_STAGE_COUNTS_AS,
+  STAGE_ALIASES
+} from './evidenceRules.js'
 
-/** Immature stages and the nest a specimen was taken from. */
-export const STAGE_PARTS = Object.freeze(['egg', 'larvae', 'pupa', 'nidus'])
-/** An adult, or no anatomical part at all -- these need the relationship. */
-export const ADULT_PARTS = Object.freeze(['adult', ''])
-export const WILD_FEEDING_RELATIONSHIP = 'feeding observed in the wild on'
+const ANY = '*'
+
 /**
- * Rearing shows the host carried the development, not just the adult.
- * `reared from galls on` is a relationship of its own in TaxonWorks, not a
- * wording variant, so it is listed rather than matched by prefix -- a prefix
- * would also admit relationships that merely start the same way.
+ * The three colours in priority order -- a row paints the first one it has
+ * any record in -- with the theme token each one renders in.
  */
-export const REARED_FROM_RELATIONSHIPS = Object.freeze([
-  'reared from',
-  'reared from galls on'
+const COLOURS = Object.freeze([
+  Object.freeze({ key: 'green', class: 'text-success' }),
+  Object.freeze({ key: 'orange', class: 'text-warning' }),
+  Object.freeze({ key: 'red', class: 'text-danger' })
 ])
-export const COLLECTED_FROM_RELATIONSHIP = 'collected from'
+const COLOUR_KEYS = COLOURS.map(colour => colour.key)
+/** For a record no rule reaches, i.e. a table without its '*', '*' line. */
+const FALLBACK_COLOUR = 'red'
+
+const normalise = value => String(value ?? '').trim().toLocaleLowerCase('en')
+const ALIASES = new Map(Object.entries(STAGE_ALIASES)
+  .map(([recorded, stage]) => [normalise(recorded), normalise(stage)]))
+const tableTerm = stage => ALIASES.get(normalise(stage)) ?? normalise(stage)
+const ruleKey = (stage, relationship) => `${stage}\u0000${relationship}`
 
 /**
  * '' when the subject carries no AnatomicalPart, the lowercased term when it
  * does, and null for an AnatomicalPart whose term cannot be read -- which is
- * not the same as having none, and must not pass as "adult or empty".
+ * not the same as having none, and must not pass as "no stage recorded".
  */
 export function subjectStage(row) {
   const subject = row?.subject || {}
@@ -48,78 +60,136 @@ export function subjectStage(row) {
 }
 
 /**
- * 'stage'          egg/larvae/pupa/nidus, whatever the relationship says
- * 'reared'         reared from / reared from galls on, whatever the part says
- * 'wild-feeding'   adult or no part + feeding observed in the wild on
- * 'collected-from' adult or no part + collected from (weak evidence)
- * 'other'          everything else
+ * The stage as the rule table spells it: aliases folded (larvae -> larva), a
+ * Subject without a part counted as NO_STAGE_COUNTS_AS, and an unreadable part
+ * left to the table's '*' lines alone.
  */
-export function classifyStandardRow(row) {
-  const stage = subjectStage(row)
-  const relationship = row?.relationship?.trim?.() || ''
-  if (STAGE_PARTS.includes(stage)) return 'stage'
-  // A rearing needs no part gate: the relationship itself says the host
-  // carried the development, so which part the reared specimen was filed
-  // under adds nothing. Gating it would hang the colour on a spelling -- the
-  // project's own gall rearings are recorded as `larva`, in the singular,
-  // which is in neither list. A feeding observation is gated because it
-  // describes the individual that was watched, so what that individual was
-  // does decide what the record shows.
-  if (REARED_FROM_RELATIONSHIPS.includes(relationship)) return 'reared'
-  if (ADULT_PARTS.includes(stage)) {
-    if (relationship === WILD_FEEDING_RELATIONSHIP) return 'wild-feeding'
-    if (relationship === COLLECTED_FROM_RELATIONSHIP) return 'collected-from'
-  }
-  return 'other'
-}
-
-// Stage, rearing and wild feeding share one mark: each of them ties the beetle
-// to that host directly, and the dot says how much a record is worth in the
-// field, not which rule admitted it. Being collected from a plant does not --
-// hence the separate weak mark, one step below it and one above everything
-// outside the criteria.
-const MARK_BY_CATEGORY = Object.freeze({
-  stage: 'confirmed',
-  'wild-feeding': 'confirmed',
-  reared: 'confirmed',
-  'collected-from': 'weak',
-  other: 'excluded'
-})
-
-export function standardMark(category) {
-  return MARK_BY_CATEGORY[category] || 'excluded'
-}
-
-export function standardRowMark(row) {
-  return standardMark(classifyStandardRow(row))
-}
-
-export function emptyStandardCounts() {
-  return { confirmed: 0, weak: 0, excluded: 0 }
+export function evidenceStage(stage) {
+  if (stage === null || stage === undefined) return ANY
+  return tableTerm(stage === '' ? NO_STAGE_COUNTS_AS : stage) || ANY
 }
 
 /**
- * Green, amber and red, in the fixed slot order the Standard table renders.
- * Lives here, not in the table's <script setup>, so the column-heading legend
- * and the per-row breakdown can never drift apart: both read this one list.
+ * The table, checked once on load. A wrong colour or a stage/relationship
+ * pair listed twice is an editing mistake; the console names it, and the
+ * panel keeps working with the lines it can use (the first of two duplicates).
  */
-export const STANDARD_MARK_STYLES = Object.freeze([
-  Object.freeze({
-    key: 'confirmed',
-    class: 'text-success',
-    reason: 'immature stage, reared from (including galls), or adult feeding observed in the wild'
-  }),
-  Object.freeze({
-    key: 'weak',
-    class: 'text-warning',
-    reason: 'adult collected from'
-  }),
-  Object.freeze({
-    key: 'excluded',
-    class: 'text-danger',
-    reason: 'vague relationships of adults: legacy, feeding observed in experimental setup and undefined relationship'
+function compileRules(rules) {
+  const byKey = new Map()
+  const list = []
+  const problems = []
+  for (const rule of Array.isArray(rules) ? rules : []) {
+    const [stage, relationship, colour] = Array.isArray(rule) ? rule : []
+    const text = JSON.stringify(rule)
+    if (typeof stage !== 'string' || !stage.trim()
+      || typeof relationship !== 'string' || !relationship.trim()) {
+      problems.push(`${text}: needs a stage and a relationship ('*' for any)`)
+      continue
+    }
+    if (!COLOUR_KEYS.includes(colour)) {
+      problems.push(`${text}: colour must be one of ${COLOUR_KEYS.join(', ')}`)
+      continue
+    }
+    const entry = {
+      stage: tableTerm(stage),
+      relationship: normalise(relationship),
+      label: relationship.trim(),
+      colour
+    }
+    const key = ruleKey(entry.stage, entry.relationship)
+    if (byKey.has(key)) {
+      problems.push(`${text}: same stage and relationship as an earlier line, which wins`)
+      continue
+    }
+    byKey.set(key, colour)
+    list.push(entry)
+  }
+  if (problems.length && typeof console !== 'undefined') {
+    console.warn(`[panel:biological-associations-v2] evidenceRules.js:\n  ${problems.join('\n  ')}`)
+  }
+  return { byKey, list }
+}
+
+const RULES = compileRules(EVIDENCE_RULES)
+
+/**
+ * The colour of one stage x relationship, most specific line first:
+ * stage + relationship, stage + '*', '*' + relationship, '*' + '*'.
+ */
+export function evidenceColour(stage, relationship) {
+  const tableStageName = stage === ANY ? ANY : tableTerm(stage)
+  const rel = normalise(relationship)
+  const candidates = tableStageName === ANY
+    ? [[ANY, rel], [ANY, ANY]]
+    : [[tableStageName, rel], [tableStageName, ANY], [ANY, rel], [ANY, ANY]]
+  for (const [s, r] of candidates) {
+    const colour = RULES.byKey.get(ruleKey(s, r))
+    if (colour) return colour
+  }
+  return FALLBACK_COLOUR
+}
+
+export function standardRowMark(row) {
+  return evidenceColour(evidenceStage(subjectStage(row)), row?.relationship)
+}
+
+export function emptyStandardCounts() {
+  return Object.fromEntries(COLOUR_KEYS.map(key => [key, 0]))
+}
+
+function stageLabel(stage) {
+  if (stage === ANY) return 'any stage'
+  const names = [stage]
+  for (const [recorded, target] of ALIASES) {
+    if (target === stage && recorded !== stage) names.push(recorded)
+  }
+  if (evidenceStage('') === stage) names.push('no stage recorded')
+  return names.join(' / ')
+}
+
+/**
+ * The cases one colour covers, as legend lines in table order:
+ * "larva / larvae: reared from, collected from", "pupa: any other
+ * relationship", "any stage: [legacy] feeds on", "everything else".
+ */
+function ruleLines(colour) {
+  const stagesWithOwnLines = new Set(RULES.list
+    .filter(rule => rule.relationship !== ANY)
+    .map(rule => rule.stage))
+  const groups = new Map()
+  let catchAll = false
+  for (const rule of RULES.list) {
+    if (rule.colour !== colour) continue
+    if (rule.stage === ANY && rule.relationship === ANY) {
+      catchAll = true
+      continue
+    }
+    if (!groups.has(rule.stage)) groups.set(rule.stage, [])
+    groups.get(rule.stage).push(rule)
+  }
+  const lines = [...groups].map(([stage, rules]) => {
+    const named = rules.filter(rule => rule.relationship !== ANY).map(rule => rule.label)
+    if (rules.some(rule => rule.relationship === ANY)) {
+      named.push(stagesWithOwnLines.has(stage) ? 'any other relationship' : 'any relationship')
+    }
+    return `${stageLabel(stage)}: ${named.join(', ')}`
   })
-])
+  if (catchAll) lines.push('everything else')
+  return lines
+}
+
+/**
+ * Green, orange and red, in the fixed slot order the Standard table renders.
+ * Lives here, not in the table's <script setup>, so the column-heading legend
+ * and the per-row breakdown can never drift apart: both read this one list,
+ * and its `rules` lines come from the same table the rows are graded by.
+ */
+export const STANDARD_MARK_STYLES = Object.freeze(COLOURS.map(colour => Object.freeze({
+  key: colour.key,
+  class: colour.class,
+  reason: EVIDENCE_LABELS[colour.key] || colour.key,
+  rules: Object.freeze(ruleLines(colour.key))
+})))
 
 /** All three categories in a fixed order, each with the row's count. The table
  *  shows only the best of them; the breakdown behind the dot shows the rest. */
@@ -134,7 +204,7 @@ export function standardRowMarks(row) {
 
 /**
  * The single mark the Field Assistant paints for a row: the best category the
- * row has any record in, green before amber before red. That order is
+ * row has any record in, green before orange before red. That order is
  * STANDARD_MARK_STYLES' own, so the priority cannot drift from the legend.
  * null for a row with nothing classified, which the table then leaves blank
  * rather than inventing a colour for.

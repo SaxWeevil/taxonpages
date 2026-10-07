@@ -131,7 +131,7 @@ import { makeAPIRequest, sanitizeAndLinkifyHtml } from '@/utils'
 import AssociationSelectionMenu from './AssociationSelectionMenu.vue'
 import NameDisplayInfo from './NameDisplayInfo.vue'
 import { alphabetical } from './groupStandardAssociations.js'
-import { ADVANCED_COLUMNS, DEFAULT_COLUMNS, columnValues, defaultAdvancedSettings, filterAdvancedRows,
+import { ADVANCED_COLUMNS, DEFAULT_COLUMNS, columnValues, defaultAdvancedSettings, filterAdvancedRows, filterValues,
   makeAdvancedRows, nextAdvancedSort, normalizeAdvancedSettings, selectedColumnValues, sortAdvancedRows, translateNameFilters } from './advancedAssociations.js'
 import { loadAdvancedMetadata } from './loadAdvancedAssociations.js'
 import { readBrowserSession, writeBrowserSession } from './browserSessionStorage.js'
@@ -179,7 +179,7 @@ const showAuthorship = computed(() => settings.value.showAuthorship)
 const displayRows = computed(() => makeAdvancedRows(props.rows, props.taxa,
   { original: { subject: originalSubject.value, object: originalObject.value }, showAuthorship: showAuthorship.value }, metadata.value, props.classification, true))
 const valuesByColumn = computed(() => new Map(ADVANCED_COLUMNS.map(column => [column.key,
-  [...new Set(displayRows.value.flatMap(row => columnValues(row, column.key)))].sort(alphabetical)
+  [...new Set(displayRows.value.flatMap(row => filterValues(row, column.key)))].sort(alphabetical)
 ])))
 const filteredRows = computed(() => sortAdvancedRows(filterAdvancedRows(displayRows.value, settings.value), settings.value.sort))
 const pageCount = computed(() => Math.max(1, Math.ceil(filteredRows.value.length / settings.value.per)))
