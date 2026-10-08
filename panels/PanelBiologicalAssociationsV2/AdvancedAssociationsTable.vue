@@ -208,8 +208,11 @@ function updateSettings(change) {
   // request -- but they do not all mean the same thing for the reader's place
   // in the table. A different result set starts at its own beginning; a
   // different page size keeps the first visible record in view; showing
-  // another column must not move the reader at all.
-  if ('filters' in change || 'sort' in change) page.value = 1
+  // another column must not move the reader at all. Renaming (author / year,
+  // original names) carries name filters translated to select the same
+  // records, so it keeps the page like a column switch does.
+  const renamed = 'showAuthorship' in change || 'original' in change
+  if (!renamed && ('filters' in change || 'sort' in change)) page.value = 1
   else if ('per' in change) page.value = movePage(before.per, settings.value.per)
   writeBrowserSession(`taxonpages:advanced:${props.scope}`, settings.value)
 }

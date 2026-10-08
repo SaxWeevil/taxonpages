@@ -325,8 +325,8 @@ Active name filters are translated when switching synonyms or authorship.
 - Paging is a slice of records already in hand, so turning a page is immediate
   and costs no request — which is also the only way the selected page can be
   marked as selected at the moment it is clicked. Filters and sorting return to
-  page 1, because their first hit is what was asked for; switching a column on
-  leaves the reader where they were; a new page size keeps the first visible
+  page 1, because their first hit is what was asked for; switching a column,
+  author / year or original names on leaves the reader where they were; a new page size keeps the first visible
   record in view, so 51–100 at 50 per page becomes page 2 at 100 per page. The
   count line names the records and the page, not the row range. The centered, unlabelled page-size
   dropdown offers **50 or 100**; pagination is available above and below. Saved
