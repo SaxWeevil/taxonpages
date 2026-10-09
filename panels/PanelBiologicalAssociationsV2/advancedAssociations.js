@@ -152,7 +152,7 @@ export function makeAdvancedRows(rows, taxa, settings, metadata = {}, classifica
     return { id: row.id, subject, object, relationship: relationshipValue(row),
       depictions: (metadata.depictions?.get(String(row.id)) || []).length ? 'Present' : 'Absent',
       area: distributions.length ? distributions.map(item => item.isAbsent ? `${item.area} (absent)` : item.area) :
-        [[locality?.country, locality?.stateProvince, locality?.county].filter(Boolean).join(', ')].filter(Boolean),
+        [[locality?.country, locality?.stateProvince, locality?.county].filter(Boolean).join(': ')].filter(Boolean),
       citationList: references,
       citationNotes: (citations.length ? notes : [collector]).filter(Boolean),
       // One combined value, so sorting and copying keep seeing the column

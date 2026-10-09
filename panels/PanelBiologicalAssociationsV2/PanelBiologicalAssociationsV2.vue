@@ -351,7 +351,7 @@
                 <div
                   v-for="dist in ba.distributions"
                   :key="dist.id"
-                  class="text-sm leading-snug font-semibold"
+                  class="text-sm leading-snug"
                   :class="{ 'line-through opacity-60': dist.isAbsent }"
                 >{{ dist.area }}</div>
               </template>
@@ -495,6 +495,7 @@ import {
 import DwcTable from '../_shared/DwcTable.vue'
 import ImageLightbox from '../_shared/ImageLightbox.vue'
 import ReferenceModal from '../_shared/ReferenceModal.vue'
+import { areaLabel } from './areaLabel.js'
 import { stripHtml, shortCitation } from '../_shared/citationText.js'
 import {
   makeBiologicalAssociation,
@@ -1461,7 +1462,7 @@ async function fetchDistributions(associationIds, requestId) {
     const baId = dist.asserted_distribution_object_id
     const entry = {
       id: dist.id,
-      area: dist.asserted_distribution_shape?.name || '',
+      area: areaLabel(dist.asserted_distribution_shape),
       isAbsent: !!dist.is_absent
     }
     if (!result.has(baId)) result.set(baId, [])
@@ -1689,7 +1690,7 @@ async function loadBiologicalAssociations(page = 1) {
           const scientificName = record.scientificName || null
           if (parts.length || (lat && lon) || record.recordedBy || scientificName || record.family) {
             localityByCoId.set(specimenKey(specimen), {
-              text: parts.join(', '),
+              text: parts.join(': '),
               lat,
               lon,
               recordedBy: record.recordedBy || null,
