@@ -1,5 +1,6 @@
 import { fetchRowsInBatches } from './loadStandardAssociations.js'
 import { shortCitation, stripHtml } from '../_shared/citationText.js'
+import { areaLabel } from './areaLabel.js'
 
 export function rankName(taxon) {
   return String(taxon?.rank || '').split('::').pop().toLowerCase()
@@ -92,7 +93,7 @@ export async function loadAdvancedMetadata(ids, kind, api, isCurrent = () => tru
     const value = kind === 'tags' ? row.keyword?.name || '' : kind === 'attributes'
       ? { id: row.id, name: row.predicate_name || row.predicate?.name || row.import_predicate || '', value: String(row.value ?? '') }
       : kind === 'citations' ? citationEntry(row, sources)
-      : kind === 'distributions' ? { id: row.id, area: row.asserted_distribution_shape?.name || '', isAbsent: !!row.is_absent } : row
+      : kind === 'distributions' ? { id: row.id, area: areaLabel(row.asserted_distribution_shape), isAbsent: !!row.is_absent } : row
     byId.get(id).push(value)
   }
   return byId
